@@ -37,7 +37,6 @@ import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalGasStation
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Subscriptions
@@ -248,21 +247,8 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                             }
                         }
 
-                        // Notifications badge button
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Notifications,
-                                    contentDescription = "Notificaciones",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
+                        // Corrección: se quitó el botón de "Notificaciones" que no tenía ninguna acción
+                        // asociada (parecía tocable pero no abría nada) — reduce ruido visual del header.
 
                         // User avatar / Cuenta
                         Surface(

@@ -448,32 +448,16 @@ fun MsiTrackerScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Encabezado de la lista actual
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (selectedTab == 0) "PLANES MSI ACTIVOS (${filteredMsiList.size})" else "PLANES MSI FINALIZADOS (${filteredMsiList.size})",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                if (selectedCardFilterId != null) {
-                    Text(
-                        text = "Limpiar filtro",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable {
-                            selectedCardFilterId = null
-                        }
-                    )
-                }
-            }
+            // Encabezado de la lista actual.
+            // Corrección: se quitó el texto "Limpiar filtro" que aparecía aquí — era redundante con
+            // el chip "Todas las tarjetas" de arriba, que ya hace exactamente lo mismo.
+            Text(
+                text = if (selectedTab == 0) "PLANES MSI ACTIVOS (${filteredMsiList.size})" else "PLANES MSI FINALIZADOS (${filteredMsiList.size})",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         // Estado vacío si no hay elementos con los filtros seleccionados

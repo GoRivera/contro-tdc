@@ -877,30 +877,15 @@ fun StatementsScreen(
 
             if (availableBeneficiaries.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(14.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "FILTRAR POR RESPONSABLE",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (selectedBeneficiaryFilter != null) {
-                        Text(
-                            text = "Ver todos",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .clickable { selectedBeneficiaryFilter = null }
-                                .testTag("clear_beneficiary_filter")
-                        )
-                    }
-                }
+                // Corrección: se quitó el texto "Ver todos" — era redundante con el chip "Todos (N)"
+                // de abajo, que ya limpia el filtro de responsable.
+                Text(
+                    text = "FILTRAR POR RESPONSABLE",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier
