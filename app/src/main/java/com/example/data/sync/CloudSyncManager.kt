@@ -423,8 +423,7 @@ class CloudSyncManager(
                     notes = data["notes"] as? String ?: "",
                     targetStatementMonth = data["targetStatementMonth"] as? String ?: "",
                     isSubscription = data["isSubscription"] as? Boolean ?: false,
-                    subscriptionId = localSubId,
-                    firestoreId = fid
+                    subscriptionId = localSubId
                 )
                 val localId = if (existing != null) {
                     repository.updateExpense(expense)
