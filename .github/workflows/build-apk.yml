@@ -39,11 +39,14 @@ jobs:
       # SHA-1 distinta cada vez, lo que rompía el inicio de sesión con Google (la
       # huella del APK ya no coincidía con la registrada en Firebase/Google Cloud).
 
+      # Cada corrida usa un versionCode ascendente (el número de la propia corrida de CI) para
+      # que los APKs generados se puedan instalar unos sobre otros como actualización normal,
+      # en vez de quedar "empatados" en el mismo versionCode.
       - name: Compilar APK de depuración
-        run: gradle assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace "-PappVersionCode=${{ github.run_number }}"
 
       - name: Subir APK como artefacto descargable
         uses: actions/upload-artifact@v4
         with:
-          name: control-tdc-debug-apk
+          name: control-tdc-debug-apk-${{ github.run_number }}
           path: app/build/outputs/apk/debug/*.apk

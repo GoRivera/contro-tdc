@@ -2,7 +2,10 @@ package com.example.ui.screens
 
 import android.app.DatePickerDialog
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,17 +46,25 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.ServiceEntry
@@ -87,6 +98,24 @@ fun ServicesScreen(
     }
     val filteredEntries = remember(entries, selectedTypeFilter) {
         if (selectedTypeFilter == null) entries else entries.filter { it.serviceType == selectedTypeFilter }
+    }
+
+    // Puntos del gráfico de tendencia: orden cronológico del tipo seleccionado. Para agua/luz se
+    // grafica el consumo (m³/kWh); para gas, que no captura consumo, se grafica el monto.
+    val trendPoints: List<Pair<String, Double>> = remember(entries, selectedTypeFilter) {
+        val type = selectedTypeFilter ?: return@remember emptyList<Pair<String, Double>>()
+        entries
+            .filter { it.serviceType == type }
+            .sortedBy { it.dateMillis }
+            .map { entry ->
+                val label = if (type == ServiceType.GAS) {
+                    SimpleDateFormat("dd/MM", Locale("es", "MX")).format(Date(entry.dateMillis))
+                } else {
+                    SimpleDateFormat("MMM yy", Locale("es", "MX")).format(Date(entry.dateMillis))
+                }
+                val value = if (ServiceType.hasConsumption(type)) entry.consumption else entry.amount
+                label to value
+            }
     }
 
     LazyColumn(
@@ -168,6 +197,21 @@ fun ServicesScreen(
             }
         }
 
+        // Gráfico de tendencia: solo aparece cuando se filtra por un servicio específico
+        // (tocando su tarjeta de arriba) y hay al menos 2 registros para trazar una línea.
+        if (selectedTypeFilter != null && trendPoints.size >= 2) {
+            item {
+                val type = selectedTypeFilter!!
+                val (_, color) = serviceVisuals(type)
+                ServiceConsumptionTrendChart(
+                    points = trendPoints,
+                    unit = if (ServiceType.hasConsumption(type)) ServiceType.consumptionUnit(type) else "$",
+                    title = if (ServiceType.hasConsumption(type)) "TENDENCIA DE CONSUMO • ${ServiceType.displayName(type).uppercase()}" else "TENDENCIA DE MONTO • GAS",
+                    color = color
+                )
+            }
+        }
+
         if (filteredEntries.isEmpty()) {
             item {
                 Box(
@@ -237,6 +281,146 @@ fun ServicesScreen(
                 TextButton(onClick = { entryToDelete = null }) { Text("Cancelar") }
             }
         )
+    }
+}
+
+/**
+ * Gráfico de línea con la tendencia de un servicio (consumo de agua/luz, o monto de gas) a lo
+ * largo del tiempo, para detectar de un vistazo en qué periodo subió. Toca un punto para ver
+ * su valor exacto.
+ */
+@Composable
+private fun ServiceConsumptionTrendChart(
+    points: List<Pair<String, Double>>,
+    unit: String,
+    title: String,
+    color: Color
+) {
+    if (points.size < 2) return
+
+    var selectedIndex by remember(points) { mutableIntStateOf(points.lastIndex) }
+    val values = points.map { it.second }
+    val minValue = remember(values) { (values.minOrNull() ?: 0.0) * 0.85 }
+    val maxValue = remember(values) { (values.maxOrNull() ?: 1.0) * 1.15 }
+    val valueRange = (maxValue - minValue).coerceAtLeast(0.0001)
+
+    val surfaceColor = MaterialTheme.colorScheme.surface
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+            .testTag("service_trend_chart")
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = title,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Box(modifier = Modifier.fillMaxWidth().height(120.dp)) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .pointerInput(points) {
+                            detectTapGestures { tapOffset ->
+                                val stepX = size.width / (points.size - 1).coerceAtLeast(1)
+                                val closestIndex = ((tapOffset.x + (stepX / 2)) / stepX).toInt().coerceIn(0, points.lastIndex)
+                                selectedIndex = closestIndex
+                            }
+                        }
+                ) {
+                    val width = size.width
+                    val height = size.height
+                    val stepX = width / (points.size - 1).coerceAtLeast(1)
+
+                    val coords = points.mapIndexed { i, p ->
+                        val x = i * stepX
+                        val yRatio = 1f - ((p.second - minValue) / valueRange).toFloat().coerceIn(0f, 1f)
+                        val y = yRatio * (height - 30.dp.toPx()) + 15.dp.toPx()
+                        Offset(x, y)
+                    }
+
+                    val fillPath = Path().apply {
+                        moveTo(coords.first().x, height)
+                        coords.forEach { lineTo(it.x, it.y) }
+                        lineTo(coords.last().x, height)
+                        close()
+                    }
+                    drawPath(
+                        path = fillPath,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(color.copy(alpha = 0.35f), color.copy(alpha = 0.02f)),
+                            startY = 0f,
+                            endY = height
+                        )
+                    )
+
+                    val strokePath = Path().apply {
+                        moveTo(coords.first().x, coords.first().y)
+                        for (i in 1 until coords.size) {
+                            val prev = coords[i - 1]
+                            val curr = coords[i]
+                            val midX = (prev.x + curr.x) / 2f
+                            cubicTo(midX, prev.y, midX, curr.y, curr.x, curr.y)
+                        }
+                    }
+                    drawPath(
+                        path = strokePath,
+                        color = color,
+                        style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+                    )
+
+                    coords.forEachIndexed { i, coord ->
+                        val isSelected = (i == selectedIndex)
+                        drawCircle(
+                            color = if (isSelected) color else surfaceColor,
+                            radius = if (isSelected) 6.dp.toPx() else 4.dp.toPx(),
+                            center = coord
+                        )
+                        drawCircle(
+                            color = color,
+                            radius = if (isSelected) 6.dp.toPx() else 4.dp.toPx(),
+                            center = coord,
+                            style = Stroke(width = 2.dp.toPx())
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (selectedIndex in points.indices) {
+                val pt = points[selectedIndex]
+                val valueLabel = if (pt.second % 1.0 == 0.0) pt.second.toLong().toString() else String.format(Locale.US, "%.2f", pt.second)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = pt.first,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = if (unit == "$") "$${valueLabel}" else "$valueLabel $unit",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = color
+                    )
+                }
+            }
+        }
     }
 }
 

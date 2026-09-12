@@ -17,8 +17,11 @@ android {
     applicationId = "com.aistudio.creditcards.qwvpkz"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    // CI pasa -PappVersionCode=<numero de corrida> para que cada APK generado tenga un
+    // versionCode distinto y ascendente (útil para diferenciar builds al iterar).
+    // Localmente (sin ese parámetro) se usa 1 como antes.
+    versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+    versionName = "1.0.${(project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 0}"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
