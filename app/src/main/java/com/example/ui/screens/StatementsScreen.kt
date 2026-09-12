@@ -443,63 +443,17 @@ fun StatementsScreen(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Chips para selección rápida de quincena
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = selectedFortnight == null,
-                        onClick = { selectedFortnight = null },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(14.dp))
-                        },
-                        label = { Text("Mes Completo", fontWeight = if (selectedFortnight == null) FontWeight.Bold else FontWeight.Normal) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.primary,
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            labelColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        modifier = Modifier.testTag("filter_fortnight_all")
-                    )
-
-                    FilterChip(
-                        selected = selectedFortnight == 1,
-                        onClick = { selectedFortnight = if (selectedFortnight == 1) null else 1 },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(14.dp))
-                        },
-                        label = { Text("Antes del 15", fontWeight = if (selectedFortnight == 1) FontWeight.Bold else FontWeight.Normal) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.primary,
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            labelColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        modifier = Modifier.testTag("filter_fortnight_1")
-                    )
-
-                    FilterChip(
-                        selected = selectedFortnight == 2,
-                        onClick = { selectedFortnight = if (selectedFortnight == 2) null else 2 },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(14.dp))
-                        },
-                        label = { Text("Fin de mes", fontWeight = if (selectedFortnight == 2) FontWeight.Bold else FontWeight.Normal) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.primary,
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            labelColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        modifier = Modifier.testTag("filter_fortnight_2")
+                // Corrección: se quitaron los chips "Mes Completo/Antes del 15/Fin de mes" — hacían
+                // exactamente lo mismo que tocar las dos tarjetas de abajo (que además ya muestran los
+                // montos). Tocar de nuevo la quincena seleccionada regresa a "mes completo".
+                if (selectedFortnight != null) {
+                    Text(
+                        text = "Toca la quincena seleccionada de nuevo para ver el mes completo",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
                     )
                 }
-
-                Spacer(modifier = Modifier.height(10.dp))
 
                 // Requisito 3: Visualización de totales de gastos y abonos por cada quincena
                 Row(

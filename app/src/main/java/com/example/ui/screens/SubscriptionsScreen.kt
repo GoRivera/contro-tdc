@@ -26,6 +26,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
@@ -136,6 +138,7 @@ fun SubscriptionsScreen(
     var subscriptionToDelete by remember { mutableStateOf<Subscription?>(null) }
     var selectedCategoryFilter by remember { mutableStateOf<String?>(null) }
     var selectedParticipantFilter by remember { mutableStateOf<String?>(null) }
+    var showMonthPickerDialog by remember { mutableStateOf(false) }
 
     val availableYearMonths = remember {
         val list = mutableListOf<Pair<String, String>>()
@@ -252,27 +255,50 @@ fun SubscriptionsScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Selector de mes / periodo para el tracking
+                // Selector de mes / periodo para el tracking.
+                // Corrección: antes se mostraban 48 chips (4 años x 12 meses) siempre visibles en
+                // pantalla, ocupando mucho espacio horizontal en celular. Ahora es un selector
+                // compacto "‹ Mes Año ›" con navegación de un mes a la vez, más un botón de
+                // calendario para saltar directamente a cualquier mes (sin perder esa función).
+                val currentYmIndex = remember(availableYearMonths, selectedYearMonth) {
+                    availableYearMonths.indexOfFirst { it.first == selectedYearMonth }
+                }
+                val currentYmLabel = if (currentYmIndex >= 0) availableYearMonths[currentYmIndex].second else selectedYearMonth
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    availableYearMonths.forEach { (ym, label) ->
-                        val isSelected = ym == selectedYearMonth
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { onSelectYearMonth(ym) },
-                            leadingIcon = {
-                                Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(14.dp))
-                            },
-                            label = { Text(label, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.primary
-                            )
-                        )
+                    IconButton(
+                        onClick = {
+                            if (currentYmIndex > 0) onSelectYearMonth(availableYearMonths[currentYmIndex - 1].first)
+                        },
+                        enabled = currentYmIndex > 0
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mes anterior")
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { showMonthPickerDialog = true }
+                            .padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(currentYmLabel, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+
+                    IconButton(
+                        onClick = {
+                            if (currentYmIndex in 0 until availableYearMonths.lastIndex) onSelectYearMonth(availableYearMonths[currentYmIndex + 1].first)
+                        },
+                        enabled = currentYmIndex in 0 until availableYearMonths.lastIndex
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Mes siguiente")
                     }
                 }
             }
@@ -961,6 +987,57 @@ fun SubscriptionsScreen(
                 }
             }
         }
+    }
+
+    // Diálogo para saltar directamente a cualquier mes (reemplaza los 48 chips que antes estaban
+    // siempre visibles en pantalla; ahora solo aparecen cuando el usuario los pide).
+    if (showMonthPickerDialog) {
+        AlertDialog(
+            onDismissRequest = { showMonthPickerDialog = false },
+            title = { Text("Ir a un mes", fontWeight = FontWeight.Bold) },
+            text = {
+                val groupedByYear = remember(availableYearMonths) {
+                    availableYearMonths.groupBy { it.first.substring(0, 4) }
+                }
+                LazyColumn(modifier = Modifier.height(360.dp)) {
+                    groupedByYear.forEach { (year, months) ->
+                        item {
+                            Text(
+                                text = year,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                            )
+                        }
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                months.forEach { (ym, label) ->
+                                    val isSelected = ym == selectedYearMonth
+                                    val monthOnly = label.substringBefore(" ")
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            onSelectYearMonth(ym)
+                                            showMonthPickerDialog = false
+                                        },
+                                        label = { Text(monthOnly, fontSize = 12.sp) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMonthPickerDialog = false }) { Text("Cerrar") }
+            }
+        )
     }
 
     // Diálogo Registrar Nueva Suscripción
