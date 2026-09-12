@@ -876,7 +876,9 @@ fun CardsManagementScreen(
         cardholderName: String,
         primaryColorHex: Long,
         secondaryColorHex: Long,
-        newNetwork: String
+        newNetwork: String,
+        newBank: String,
+        newAnnualInterestRatePercent: Double
     ) -> Unit,
     onDeleteCard: (CreditCard) -> Unit
 ) {
@@ -1397,20 +1399,33 @@ fun CardsManagementScreen(
         val card = editingCard!!
         var editName by remember(card) { mutableStateOf(card.name) }
         var editCardholder by remember(card) { mutableStateOf(card.cardholderName) }
+        var editBank by remember(card) { mutableStateOf(card.bank) }
         var editCutoff by remember(card) { mutableStateOf(card.cutoffDay.toString()) }
         var editGrace by remember(card) { mutableStateOf(card.graceDays.toString()) }
         var editDue by remember(card) { mutableStateOf(card.paymentDueDay.toString()) }
-        var editLimit by remember(card) { mutableStateOf(card.creditLimit.toLong().toString()) }
+        // Corrección: antes se truncaba a entero (card.creditLimit.toLong()), perdiendo los centavos
+        // del límite real cada vez que se abría el diálogo de edición.
+        var editLimit by remember(card) {
+            mutableStateOf(
+                if (card.creditLimit % 1.0 == 0.0) card.creditLimit.toLong().toString() else card.creditLimit.toString()
+            )
+        }
+        var editRate by remember(card) {
+            mutableStateOf(
+                if (card.annualInterestRatePercent % 1.0 == 0.0) card.annualInterestRatePercent.toLong().toString() else card.annualInterestRatePercent.toString()
+            )
+        }
         var editIsDepartmental by remember(card) { mutableStateOf(card.isDepartmental) }
         var editPrimaryHex by remember(card) { mutableLongStateOf(card.primaryColorHex) }
         var editSecondaryHex by remember(card) { mutableLongStateOf(card.secondaryColorHex) }
         var editNetwork by remember(card) { mutableStateOf(card.network) }
         var showCustomPickerForEdit by remember { mutableStateOf(false) }
 
-        val cutoffNum = editCutoff.toIntOrNull() ?: card.cutoffDay
-        val graceNum = editGrace.toIntOrNull() ?: card.graceDays
-        val dueNum = editDue.toIntOrNull() ?: card.paymentDueDay
+        val cutoffNum = (editCutoff.toIntOrNull() ?: card.cutoffDay).coerceIn(1, 31)
+        val graceNum = (editGrace.toIntOrNull() ?: card.graceDays).coerceAtLeast(1)
+        val dueNum = (editDue.toIntOrNull() ?: card.paymentDueDay).coerceIn(1, 31)
         val parsedLimit = CreditCardCalculator.parseLocalizedDouble(editLimit) ?: card.creditLimit
+        val parsedRate = CreditCardCalculator.parseLocalizedDouble(editRate) ?: card.annualInterestRatePercent
 
         val otherCardsUsedColors = remember(cards, card) {
             cards.filter { it.id != card.id }.map { it.primaryColorHex }.toSet()
@@ -1478,6 +1493,16 @@ fun CardsManagementScreen(
                         onValueChange = { editCardholder = it },
                         label = { Text("Nombre del Titular") },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Corrección: antes no existía forma de editar el banco de una tarjeta ya creada.
+                    OutlinedTextField(
+                        value = editBank,
+                        onValueChange = { editBank = it },
+                        label = { Text("Banco Emisor") },
+                        leadingIcon = { Icon(Icons.Default.AccountBalance, contentDescription = null) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1576,14 +1601,24 @@ fun CardsManagementScreen(
                     ) {
                         FilterChip(
                             selected = !editIsDepartmental,
-                            onClick = { editIsDepartmental = false },
+                            onClick = {
+                                editIsDepartmental = false
+                                // Corrección: antes, al marcar "Crédito Bancario" en edición, el campo
+                                // "network" se quedaba en "Departamental" (inconsistencia con el Alta).
+                                if (editNetwork.equals("Departamental", ignoreCase = true)) {
+                                    editNetwork = "Mastercard"
+                                }
+                            },
                             label = { Text("Crédito Bancario", fontSize = 11.sp) },
                             leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null, modifier = Modifier.size(14.dp)) },
                             modifier = Modifier.weight(1f)
                         )
                         FilterChip(
                             selected = editIsDepartmental,
-                            onClick = { editIsDepartmental = true },
+                            onClick = {
+                                editIsDepartmental = true
+                                editNetwork = "Departamental"
+                            },
                             label = { Text("Departamental", fontSize = 11.sp) },
                             leadingIcon = { Icon(Icons.Default.Storefront, contentDescription = null, modifier = Modifier.size(14.dp)) },
                             modifier = Modifier.weight(1f)
@@ -1598,8 +1633,8 @@ fun CardsManagementScreen(
                         OutlinedTextField(
                             value = editCutoff,
                             onValueChange = { input ->
-                                editCutoff = input
-                                val c = input.toIntOrNull() ?: 1
+                                editCutoff = input.filter { it.isDigit() }.take(2)
+                                val c = editCutoff.toIntOrNull() ?: 1
                                 val g = editGrace.toIntOrNull() ?: 20
                                 editDue = CreditCardCalculator.calculatePaymentDueDayFromGrace(c, g).toString()
                             },
@@ -1612,9 +1647,9 @@ fun CardsManagementScreen(
                         OutlinedTextField(
                             value = editGrace,
                             onValueChange = { input ->
-                                editGrace = input
+                                editGrace = input.filter { it.isDigit() }.take(3)
                                 val c = editCutoff.toIntOrNull() ?: 1
-                                val g = input.toIntOrNull() ?: 20
+                                val g = editGrace.toIntOrNull() ?: 20
                                 editDue = CreditCardCalculator.calculatePaymentDueDayFromGrace(c, g).toString()
                             },
                             label = { Text("Días Gracia") },
@@ -1628,9 +1663,9 @@ fun CardsManagementScreen(
                     OutlinedTextField(
                         value = editDue,
                         onValueChange = { input ->
-                            editDue = input
+                            editDue = input.filter { it.isDigit() }.take(2)
                             val c = editCutoff.toIntOrNull() ?: 1
-                            val d = input.toIntOrNull() ?: 1
+                            val d = editDue.toIntOrNull() ?: 1
                             val computedGrace = CreditCardCalculator.calculateGraceDaysFromDue(c, d)
                             editGrace = computedGrace.toString()
                         },
@@ -1642,11 +1677,16 @@ fun CardsManagementScreen(
                     )
 
                     // Límite de crédito
+                    // Corrección: el filtro anterior solo permitía dígitos y descartaba el punto decimal,
+                    // por lo que era imposible teclear centavos aunque el valor se precargara con ellos.
                     OutlinedTextField(
                         value = editLimit,
-                        onValueChange = { editLimit = it.filter { c -> c.isDigit() } },
+                        onValueChange = { input ->
+                            val filtered = input.filter { c -> c.isDigit() || c == '.' }
+                            editLimit = if (filtered.count { it == '.' } > 1) editLimit else filtered
+                        },
                         label = { Text("Línea de Crédito (MXN)") },
-                        placeholder = { Text("Ej. 50000") },
+                        placeholder = { Text("Ej. 50000.00") },
                         prefix = { Text("$ ", fontWeight = FontWeight.Bold) },
                         suffix = { Text("MXN", fontSize = 12.sp) },
                         supportingText = {
@@ -1655,8 +1695,22 @@ fun CardsManagementScreen(
                                 Text("Monto: ${currencyFormat.format(p)}", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
                             }
                         },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth().testTag("edit_credit_limit_input")
+                    )
+
+                    // Tasa de interés anual real de la tarjeta (usada en el simulador de pago mínimo)
+                    OutlinedTextField(
+                        value = editRate,
+                        onValueChange = { input ->
+                            val filtered = input.filter { c -> c.isDigit() || c == '.' }
+                            editRate = if (filtered.count { it == '.' } > 1) editRate else filtered
+                        },
+                        label = { Text("Tasa de Interés Anual (%)") },
+                        placeholder = { Text("Ej. 55.0") },
+                        supportingText = { Text("Tasa ordinaria anual de tu contrato, usada en el simulador de pago mínimo", fontSize = 10.sp) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
@@ -1674,11 +1728,13 @@ fun CardsManagementScreen(
                             editCardholder,
                             editPrimaryHex,
                             editSecondaryHex,
-                            editNetwork
+                            editNetwork,
+                            editBank,
+                            parsedRate
                         )
                         editingCard = null
                     },
-                    enabled = !isDuplicateColor && editName.isNotBlank() && editCardholder.isNotBlank()
+                    enabled = !isDuplicateColor && editName.isNotBlank() && editCardholder.isNotBlank() && editBank.isNotBlank()
                 ) {
                     Text("Guardar Cambios")
                 }
@@ -1752,9 +1808,9 @@ fun CardsManagementScreen(
             }
         }
 
-        val cutoffNum = cutoffText.toIntOrNull() ?: 15
-        val graceNum = graceDaysText.toIntOrNull() ?: 20
-        val dueNum = paymentDueText.toIntOrNull() ?: 5
+        val cutoffNum = (cutoffText.toIntOrNull() ?: 15).coerceIn(1, 31)
+        val graceNum = (graceDaysText.toIntOrNull() ?: 20).coerceAtLeast(1)
+        val dueNum = (paymentDueText.toIntOrNull() ?: 5).coerceIn(1, 31)
         val parsedLimit = CreditCardCalculator.parseLocalizedDouble(limitText) ?: 0.0
         val isColorDuplicate = usedPrimaryHexes.contains(selectedPrimaryHex)
 
@@ -1994,8 +2050,8 @@ fun CardsManagementScreen(
                         OutlinedTextField(
                             value = cutoffText,
                             onValueChange = { input ->
-                                cutoffText = input
-                                val c = input.toIntOrNull() ?: 1
+                                cutoffText = input.filter { it.isDigit() }.take(2)
+                                val c = cutoffText.toIntOrNull() ?: 1
                                 val g = graceDaysText.toIntOrNull() ?: 20
                                 paymentDueText = CreditCardCalculator.calculatePaymentDueDayFromGrace(c, g).toString()
                             },
@@ -2008,9 +2064,9 @@ fun CardsManagementScreen(
                         OutlinedTextField(
                             value = graceDaysText,
                             onValueChange = { input ->
-                                graceDaysText = input
+                                graceDaysText = input.filter { it.isDigit() }.take(3)
                                 val c = cutoffText.toIntOrNull() ?: 1
-                                val g = input.toIntOrNull() ?: 20
+                                val g = graceDaysText.toIntOrNull() ?: 20
                                 paymentDueText = CreditCardCalculator.calculatePaymentDueDayFromGrace(c, g).toString()
                             },
                             label = { Text("Días Gracia") },
@@ -2024,9 +2080,9 @@ fun CardsManagementScreen(
                     OutlinedTextField(
                         value = paymentDueText,
                         onValueChange = { input ->
-                            paymentDueText = input
+                            paymentDueText = input.filter { it.isDigit() }.take(2)
                             val c = cutoffText.toIntOrNull() ?: 1
-                            val d = input.toIntOrNull() ?: 1
+                            val d = paymentDueText.toIntOrNull() ?: 1
                             val calculatedGrace = CreditCardCalculator.calculateGraceDaysFromDue(c, d)
                             graceDaysText = calculatedGrace.toString()
                         },
@@ -2038,15 +2094,19 @@ fun CardsManagementScreen(
                     )
 
                     // Línea de crédito y últimos 4 dígitos
+                    // Corrección: el filtro anterior solo permitía dígitos, sin punto decimal.
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedTextField(
                             value = limitText,
-                            onValueChange = { limitText = it.filter { c -> c.isDigit() } },
+                            onValueChange = { input ->
+                                val filtered = input.filter { c -> c.isDigit() || c == '.' }
+                                limitText = if (filtered.count { it == '.' } > 1) limitText else filtered
+                            },
                             label = { Text("Línea Crédito (MXN)") },
-                            placeholder = { Text("Ej. 40000") },
+                            placeholder = { Text("Ej. 40000.00") },
                             prefix = { Text("$ ", fontWeight = FontWeight.Bold) },
                             suffix = { Text("MXN", fontSize = 12.sp) },
                             supportingText = {
@@ -2055,7 +2115,7 @@ fun CardsManagementScreen(
                                     Text("Monto: ${currencyFormat.format(p)}", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
                                 }
                             },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.weight(1.3f).testTag("add_credit_limit_input")
                         )
 

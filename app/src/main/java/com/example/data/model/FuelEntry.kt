@@ -30,9 +30,11 @@ data class FuelEntry(
     val efficiencyKmPerL: Double,         // Rendimiento = kmDriven / litersLoaded
     val isDivided: Boolean = false,       // Gasto dividido o personal
     val personalShare: Double = 0.0,      // Monto personal si fue dividido
-    val dividedWith: String = "",         // Con quién se dividió
+    val dividedWith: String = "",         // Con quién se dividió (texto libre informativo)
+    val dividedCount: Int = 2,            // Entre cuántas personas se divide el costo total (incluyéndote), usado para calcular personalShare
     val dateMillis: Long = System.currentTimeMillis(),
-    val notes: String = ""
+    val notes: String = "",
+    val firestoreId: String = ""          // Identificador estable (UUID) para sincronización con la nube
 ) {
     /**
      * Costo monetario por kilómetro recorrido ($/km).

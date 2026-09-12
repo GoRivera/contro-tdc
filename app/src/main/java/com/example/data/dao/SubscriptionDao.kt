@@ -21,6 +21,9 @@ interface SubscriptionDao {
     @Query("SELECT * FROM subscriptions WHERE id = :id")
     suspend fun getSubscriptionById(id: Long): Subscription?
 
+    @Query("SELECT * FROM subscriptions WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getSubscriptionByFirestoreId(firestoreId: String): Subscription?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSubscription(subscription: Subscription): Long
 
@@ -39,6 +42,15 @@ interface SubscriptionDao {
 
     @Query("SELECT * FROM subscription_payment_trackings WHERE subscriptionId = :subId")
     fun getTrackingsForSubscription(subId: Long): Flow<List<SubscriptionPaymentTracking>>
+
+    @Query("SELECT * FROM subscription_payment_trackings WHERE subscriptionId = :subId AND yearMonth = :yearMonth")
+    suspend fun getTrackingsForSubscriptionAndMonth(subId: Long, yearMonth: String): List<SubscriptionPaymentTracking>
+
+    @Query("SELECT * FROM subscription_payment_trackings")
+    fun getAllTrackings(): Flow<List<SubscriptionPaymentTracking>>
+
+    @Query("SELECT * FROM subscription_payment_trackings WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getTrackingByFirestoreId(firestoreId: String): SubscriptionPaymentTracking?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrackings(trackings: List<SubscriptionPaymentTracking>)

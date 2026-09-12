@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -180,6 +181,78 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
     val subscriptionTrackings: StateFlow<List<SubscriptionPaymentTracking>> = _subscriptionYearMonth
         .flatMapLatest { ym -> repository.getSubscriptionTrackingsForMonth(ym) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    init {
+        // Corrige el bug de que el seguimiento de "quién ya pagó" no se regeneraba al cambiar de mes:
+        // cada vez que cambia el mes seleccionado de suscripciones (o cambia la lista de suscripciones),
+        // nos aseguramos de que exista tracking y cargo para ese mes en cada suscripción activa.
+        viewModelScope.launch {
+            combine(allSubscriptions, _subscriptionYearMonth) { subs, ym -> subs to ym }
+                .collect { (subs, ym) ->
+                    ensureSubscriptionDataForMonth(ym, subs)
+                }
+        }
+    }
+
+    /**
+     * Garantiza que una suscripción activa tenga su registro de seguimiento de pagos (quién ya pagó)
+     * y su cargo correspondiente en la tarjeta para [yearMonth], generándolos a partir de la plantilla
+     * de participantes del mes anterior más reciente si aún no existen. Es idempotente: si ya existe
+     * tracking para ese mes, no hace nada.
+     */
+    private suspend fun ensureSubscriptionDataForMonth(yearMonth: String, subscriptions: List<Subscription>) {
+        for (sub in subscriptions.filter { it.isActive }) {
+            if (sub.id == 0L || yearMonth < sub.startMonth) continue
+
+            val existingForMonth = repository.getTrackingsForSubscriptionAndMonth(sub.id, yearMonth)
+            if (existingForMonth.isEmpty()) {
+                val allTrackingsForSub = repository.getTrackingsForSubscriptionFlow(sub.id).first()
+                val latestPreviousMonth = allTrackingsForSub
+                    .map { it.yearMonth }
+                    .filter { it < yearMonth }
+                    .maxOrNull()
+                if (latestPreviousMonth != null) {
+                    val template = allTrackingsForSub.filter { it.yearMonth == latestPreviousMonth }
+                    val newTrackings = template.map { t ->
+                        SubscriptionPaymentTracking(
+                            subscriptionId = sub.id,
+                            yearMonth = yearMonth,
+                            participantName = t.participantName,
+                            amountOwed = t.amountOwed,
+                            isPaid = false,
+                            paidDateMillis = null
+                        )
+                    }
+                    if (newTrackings.isNotEmpty()) {
+                        repository.insertTrackings(newTrackings)
+                    }
+                }
+            }
+
+            val alreadyCharged = allExpenses.value.any {
+                it.subscriptionId == sub.id && it.targetStatementMonth == yearMonth
+            }
+            if (!alreadyCharged) {
+                val cal = Calendar.getInstance()
+                val parts = yearMonth.split("-")
+                val year = parts.getOrNull(0)?.toIntOrNull() ?: cal.get(Calendar.YEAR)
+                val month = parts.getOrNull(1)?.toIntOrNull() ?: (cal.get(Calendar.MONTH) + 1)
+                cal.set(year, month - 1, sub.billingDayOfMonth.coerceIn(1, 28), 12, 0, 0)
+                val exp = Expense(
+                    cardId = sub.cardId,
+                    concept = sub.name,
+                    amount = sub.totalMonthlyAmount,
+                    dateMillis = cal.timeInMillis,
+                    category = sub.category,
+                    isSubscription = true,
+                    subscriptionId = sub.id,
+                    targetStatementMonth = yearMonth,
+                    firestoreId = java.util.UUID.randomUUID().toString()
+                )
+                repository.insertExpense(exp)
+            }
+        }
+    }
 
     // Filter states
     private val _selectedStatementYear = MutableStateFlow(Calendar.getInstance().get(Calendar.YEAR))
@@ -368,7 +441,8 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 msiCurrentInstallment = msiCurrentInstallment,
                 msiTotalPurchaseAmount = totalPurchase,
                 notes = notes,
-                targetStatementMonth = fullStatementMonth
+                targetStatementMonth = fullStatementMonth,
+                firestoreId = java.util.UUID.randomUUID().toString()
             )
             repository.insertExpense(expense)
         }
@@ -414,7 +488,8 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 dateMillis = dateMillis,
                 sourcePayer = sourcePayer.trim().ifBlank { "Personal" },
                 targetStatementMonth = fullStatementMonth,
-                notes = notes
+                notes = notes,
+                firestoreId = java.util.UUID.randomUUID().toString()
             )
             repository.insertPayment(payment)
         }
@@ -439,7 +514,8 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
         network: String,
         isDepartmental: Boolean = false,
         graceDays: Int = 20,
-        cardholderName: String = "TITULAR"
+        cardholderName: String = "TITULAR",
+        annualInterestRatePercent: Double = 55.0
     ) {
         viewModelScope.launch {
             val card = CreditCard(
@@ -454,7 +530,9 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 network = network,
                 isDepartmental = isDepartmental,
                 graceDays = graceDays.coerceAtLeast(1),
-                cardholderName = cardholderName.trim().ifBlank { "TITULAR" }
+                cardholderName = cardholderName.trim().ifBlank { "TITULAR" },
+                annualInterestRatePercent = annualInterestRatePercent.coerceAtLeast(0.0),
+                firestoreId = java.util.UUID.randomUUID().toString()
             )
             repository.insertCard(card)
         }
@@ -471,11 +549,14 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
         cardholderName: String = card.cardholderName,
         primaryColorHex: Long = card.primaryColorHex,
         secondaryColorHex: Long = card.secondaryColorHex,
-        newNetwork: String = card.network
+        newNetwork: String = card.network,
+        newBank: String = card.bank,
+        newAnnualInterestRatePercent: Double = card.annualInterestRatePercent
     ) {
         viewModelScope.launch {
             val updated = card.copy(
                 name = newName.trim().ifBlank { card.name },
+                bank = newBank.trim().ifBlank { card.bank },
                 cutoffDay = newCutoffDay.coerceIn(1, 31),
                 paymentDueDay = newPaymentDueDay.coerceIn(1, 31),
                 creditLimit = newLimit,
@@ -484,7 +565,8 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 cardholderName = cardholderName.trim().ifBlank { card.cardholderName },
                 primaryColorHex = primaryColorHex,
                 secondaryColorHex = secondaryColorHex,
-                network = newNetwork.trim().ifBlank { card.network }
+                network = newNetwork.trim().ifBlank { card.network },
+                annualInterestRatePercent = newAnnualInterestRatePercent.coerceAtLeast(0.0)
             )
             repository.updateCard(updated)
         }
@@ -540,7 +622,8 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                     category = category.trim().ifBlank { "Servicios" },
                     startMonth = currentYM,
                     participantsSummary = summary,
-                    periodicity = periodicity
+                    periodicity = periodicity,
+                    firestoreId = java.util.UUID.randomUUID().toString()
                 )
             )
 
@@ -551,7 +634,8 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                     yearMonth = currentYM,
                     participantName = pName.trim(),
                     amountOwed = amount,
-                    isPaid = false
+                    isPaid = false,
+                    firestoreId = java.util.UUID.randomUUID().toString()
                 )
             }
             repository.insertTrackings(trackings)
@@ -571,7 +655,8 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 category = category.trim().ifBlank { "Servicios" },
                 isSubscription = true,
                 subscriptionId = subId,
-                targetStatementMonth = currentYM
+                targetStatementMonth = currentYM,
+                firestoreId = java.util.UUID.randomUUID().toString()
             )
             repository.insertExpense(exp)
         }
@@ -710,12 +795,14 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
         litersLoaded: Double,
         isDivided: Boolean,
         dividedWith: String,
+        dividedCount: Int = 2,
         notes: String,
         dateMillis: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch {
             val totalCost = Math.round(litersLoaded * pricePerLiter * 100.0) / 100.0
             val efficiency = if (litersLoaded > 0.0) Math.round((kmDriven / litersLoaded) * 100.0) / 100.0 else 0.0
+            val safeDividedCount = dividedCount.coerceAtLeast(2)
             val card = allCards.value.firstOrNull { it.id == cardId }
             val (cutoffDate, _) = if (card != null) CreditCardCalculator.calculateCycleDates(card, Date(dateMillis)) else Pair(Date(dateMillis), Date(dateMillis))
             val targetMonth = CreditCardCalculator.extractYearMonth(cutoffDate.time)
@@ -724,8 +811,11 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
             val concept = "Gasolina"
             val fullNotes = buildString {
                 append("$fuelType • Rendimiento: ${String.format(java.util.Locale.US, "%.2f", efficiency)} km/l • ${String.format(java.util.Locale.US, "%.5f", litersLoaded)} L @ $${String.format(java.util.Locale.US, "%.2f", pricePerLiter)}/L")
-                if (isDivided && dividedWith.isNotBlank()) {
-                    append(" • Dividido con: $dividedWith")
+                if (isDivided) {
+                    append(" • Dividido entre $safeDividedCount personas")
+                    if (dividedWith.isNotBlank()) {
+                        append(" ($dividedWith)")
+                    }
                 }
                 if (notes.isNotBlank()) {
                     append(" • $notes")
@@ -742,11 +832,14 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 category = "Gasolina",
                 isMsi = false,
                 notes = fullNotes,
-                targetStatementMonth = targetMonth
+                targetStatementMonth = targetMonth,
+                firestoreId = java.util.UUID.randomUUID().toString()
             )
             val expenseId = repository.insertExpense(expense)
 
-            // Registrar la entrada de combustible
+            // Registrar la entrada de combustible.
+            // Corrección: el monto personal se calcula entre el número real de personas (dividedCount),
+            // en vez de asumir siempre una división 50/50 sin importar cuántas personas participen.
             val fuelEntry = FuelEntry(
                 cardId = cardId,
                 expenseId = expenseId,
@@ -757,10 +850,12 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 totalCost = totalCost,
                 efficiencyKmPerL = efficiency,
                 isDivided = isDivided,
-                personalShare = if (isDivided) totalCost / 2.0 else totalCost,
+                personalShare = if (isDivided) Math.round((totalCost / safeDividedCount) * 100.0) / 100.0 else totalCost,
                 dividedWith = dividedWith,
+                dividedCount = safeDividedCount,
                 dateMillis = dateMillis,
-                notes = notes
+                notes = notes,
+                firestoreId = java.util.UUID.randomUUID().toString()
             )
             repository.insertFuelEntry(fuelEntry)
         }
@@ -792,12 +887,14 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
         newLitersLoaded: Double,
         newIsDivided: Boolean,
         newDividedWith: String,
+        newDividedCount: Int = 2,
         newNotes: String,
         newDateMillis: Long
     ) {
         viewModelScope.launch {
             val totalCost = Math.round(newLitersLoaded * newPricePerLiter * 100.0) / 100.0
             val efficiency = if (newLitersLoaded > 0.0) Math.round((newKmDriven / newLitersLoaded) * 100.0) / 100.0 else 0.0
+            val safeDividedCount = newDividedCount.coerceAtLeast(2)
             val card = allCards.value.firstOrNull { it.id == newCardId }
             val (cutoffDate, _) = if (card != null) CreditCardCalculator.calculateCycleDates(card, Date(newDateMillis)) else Pair(Date(newDateMillis), Date(newDateMillis))
             val targetMonth = CreditCardCalculator.extractYearMonth(cutoffDate.time)
@@ -805,18 +902,23 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
             val concept = "Gasolina"
             val fullNotes = buildString {
                 append("$newFuelType • Rendimiento: ${String.format(java.util.Locale.US, "%.2f", efficiency)} km/l • ${String.format(java.util.Locale.US, "%.5f", newLitersLoaded)} L @ $${String.format(java.util.Locale.US, "%.2f", newPricePerLiter)}/L")
-                if (newIsDivided && newDividedWith.isNotBlank()) {
-                    append(" • Dividido con: $newDividedWith")
+                if (newIsDivided) {
+                    append(" • Dividido entre $safeDividedCount personas")
+                    if (newDividedWith.isNotBlank()) {
+                        append(" ($newDividedWith)")
+                    }
                 }
                 if (newNotes.isNotBlank()) {
                     append(" • $newNotes")
                 }
             }
 
-            // Sincronizar o actualizar el gasto asociado
+            // Sincronizar o actualizar el gasto asociado.
+            // Se busca primero el gasto existente y se usa .copy() para preservar su firestoreId
+            // (antes se reconstruía desde cero y se perdía el identificador de sincronización).
             if (entry.expenseId != null) {
-                val updatedExpense = Expense(
-                    id = entry.expenseId,
+                val existingExpense = repository.getExpenseById(entry.expenseId)
+                val updatedExpense = (existingExpense ?: Expense(id = entry.expenseId, cardId = newCardId, concept = concept, amount = totalCost, dateMillis = newDateMillis)).copy(
                     cardId = newCardId,
                     concept = concept,
                     amount = totalCost,
@@ -830,6 +932,7 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 repository.updateExpense(updatedExpense)
             }
 
+            // Corrección: el monto personal se calcula entre el número real de personas (dividedCount).
             val updatedEntry = entry.copy(
                 cardId = newCardId,
                 kmDriven = newKmDriven,
@@ -839,8 +942,9 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 totalCost = totalCost,
                 efficiencyKmPerL = efficiency,
                 isDivided = newIsDivided,
-                personalShare = if (newIsDivided) totalCost / 2.0 else totalCost,
+                personalShare = if (newIsDivided) Math.round((totalCost / safeDividedCount) * 100.0) / 100.0 else totalCost,
                 dividedWith = newDividedWith,
+                dividedCount = safeDividedCount,
                 dateMillis = newDateMillis,
                 notes = newNotes
             )

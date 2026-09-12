@@ -33,5 +33,6 @@ data class Expense(
     val notes: String = "",
     val targetStatementMonth: String = "", // e.g. "2026-08", "2026-09"
     val isSubscription: Boolean = false,   // Requisito 5: Cargo recurrente de suscripción
-    val subscriptionId: Long? = null       // Id de la suscripción asociada
+    val subscriptionId: Long? = null,      // Id de la suscripción asociada
+    val firestoreId: String = ""           // Identificador estable (UUID) para sincronización con la nube
 )

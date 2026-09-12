@@ -26,5 +26,6 @@ data class Payment(
     val dateMillis: Long,
     val sourcePayer: String = "Personal", // "Personal", "Memé", "Ale", "Poncho", "Banco"
     val targetStatementMonth: String = "",// e.g. "2026-08", "2026-09"
-    val notes: String = ""
+    val notes: String = "",
+    val firestoreId: String = ""          // Identificador estable (UUID) para sincronización con la nube
 )

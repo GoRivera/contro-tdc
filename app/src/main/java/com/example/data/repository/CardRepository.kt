@@ -28,6 +28,7 @@ class CardRepository(
     val allSubscriptions: Flow<List<Subscription>> = subscriptionDao.getAllSubscriptions()
     val activeSubscriptions: Flow<List<Subscription>> = subscriptionDao.getActiveSubscriptions()
     val allFuelEntries: Flow<List<FuelEntry>> = fuelEntryDao.getAllFuelEntries()
+    val allTrackings: Flow<List<SubscriptionPaymentTracking>> = subscriptionDao.getAllTrackings()
 
     fun getFuelEntriesSince(sinceMillis: Long): Flow<List<FuelEntry>> =
         fuelEntryDao.getFuelEntriesSince(sinceMillis)
@@ -46,20 +47,28 @@ class CardRepository(
     fun getSubscriptionTrackingsForMonth(yearMonth: String): Flow<List<SubscriptionPaymentTracking>> =
         subscriptionDao.getTrackingsForMonth(yearMonth)
 
+    fun getTrackingsForSubscriptionFlow(subId: Long): Flow<List<SubscriptionPaymentTracking>> =
+        subscriptionDao.getTrackingsForSubscription(subId)
+
     suspend fun insertCard(card: CreditCard): Long = cardDao.insertCard(card)
     suspend fun updateCard(card: CreditCard) = cardDao.updateCard(card)
     suspend fun deleteCard(card: CreditCard) = cardDao.deleteCard(card)
     suspend fun deleteCardById(cardId: Long) = cardDao.deleteCardById(cardId)
+    suspend fun getCardById(id: Long): CreditCard? = cardDao.getCardById(id)
+    suspend fun getCardByFirestoreId(firestoreId: String): CreditCard? = cardDao.getCardByFirestoreId(firestoreId)
 
     suspend fun insertExpense(expense: Expense): Long = expenseDao.insertExpense(expense)
     suspend fun updateExpense(expense: Expense) = expenseDao.updateExpense(expense)
     suspend fun deleteExpense(expense: Expense) = expenseDao.deleteExpense(expense)
     suspend fun deleteExpenseById(id: Long) = expenseDao.deleteExpenseById(id)
+    suspend fun getExpenseById(id: Long): Expense? = expenseDao.getExpenseById(id)
+    suspend fun getExpenseByFirestoreId(firestoreId: String): Expense? = expenseDao.getExpenseByFirestoreId(firestoreId)
 
     suspend fun insertPayment(payment: Payment): Long = paymentDao.insertPayment(payment)
     suspend fun updatePayment(payment: Payment) = paymentDao.updatePayment(payment)
     suspend fun deletePayment(payment: Payment) = paymentDao.deletePayment(payment)
     suspend fun deletePaymentById(id: Long) = paymentDao.deletePaymentById(id)
+    suspend fun getPaymentByFirestoreId(firestoreId: String): Payment? = paymentDao.getPaymentByFirestoreId(firestoreId)
 
     suspend fun insertSubscription(subscription: Subscription): Long =
         subscriptionDao.insertSubscription(subscription)
@@ -67,6 +76,8 @@ class CardRepository(
         subscriptionDao.updateSubscription(subscription)
     suspend fun deleteSubscription(subscription: Subscription) =
         subscriptionDao.deleteSubscription(subscription)
+    suspend fun getSubscriptionByFirestoreId(firestoreId: String): Subscription? =
+        subscriptionDao.getSubscriptionByFirestoreId(firestoreId)
 
     suspend fun insertTracking(tracking: SubscriptionPaymentTracking) =
         subscriptionDao.insertTracking(tracking)
@@ -74,4 +85,11 @@ class CardRepository(
         subscriptionDao.insertTrackings(trackings)
     suspend fun updateTracking(tracking: SubscriptionPaymentTracking) =
         subscriptionDao.updateTracking(tracking)
+    suspend fun getTrackingsForSubscriptionAndMonth(subId: Long, yearMonth: String): List<SubscriptionPaymentTracking> =
+        subscriptionDao.getTrackingsForSubscriptionAndMonth(subId, yearMonth)
+    suspend fun getTrackingByFirestoreId(firestoreId: String): SubscriptionPaymentTracking? =
+        subscriptionDao.getTrackingByFirestoreId(firestoreId)
+
+    suspend fun getFuelEntryByFirestoreId(firestoreId: String): FuelEntry? =
+        fuelEntryDao.getFuelEntryByFirestoreId(firestoreId)
 }

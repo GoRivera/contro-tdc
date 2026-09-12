@@ -20,6 +20,9 @@ interface CreditCardDao {
     @Query("SELECT * FROM credit_cards WHERE id = :id LIMIT 1")
     suspend fun getCardById(id: Long): CreditCard?
 
+    @Query("SELECT * FROM credit_cards WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getCardByFirestoreId(firestoreId: String): CreditCard?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCard(card: CreditCard): Long
 

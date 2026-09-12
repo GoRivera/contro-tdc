@@ -773,9 +773,17 @@ fun StatementsScreen(
                         }
 
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("RESTANTE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                text = currencyFormat.format(activeRemaining),
+                                text = if (activeRemaining < 0.0) "SALDO A FAVOR" else "RESTANTE",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                // Corrección: antes un saldo a favor (pagos de más) se mostraba como un
+                                // número negativo sin explicación ("-$150.00"); ahora se aclara con la
+                                // etiqueta de arriba y se muestra el monto en positivo.
+                                text = currencyFormat.format(kotlin.math.abs(activeRemaining)),
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (activeRemaining <= 0) MaterialTheme.colorScheme.primary else Color(0xFFBA1A1A)
@@ -1533,7 +1541,9 @@ fun StatementsScreen(
     val dialogCard = selectedCard
     if (showInterestSimulatorDialog && dialogCard != null) {
         val remaining = statementSummary.remainingBalance
-        val estimatedRate = 60.0 // Tasa promedio ponderada anual bancaria
+        // Corrección: antes se usaba una tasa fija de 60% para todas las tarjetas; ahora se usa la
+        // tasa real capturada por el usuario en cada tarjeta (editable en "Editar Tarjeta").
+        val estimatedRate = dialogCard.annualInterestRatePercent
         val sim = remember(dialogCard, remaining) {
             CreditCardCalculator.simulateMinimumPaymentPayoff(remaining, estimatedRate)
         }

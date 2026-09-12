@@ -105,6 +105,7 @@ fun FuelScreen(
         liters: Double,
         isDivided: Boolean,
         dividedWith: String,
+        dividedCount: Int,
         notes: String,
         dateMillis: Long
     ) -> Unit,
@@ -118,9 +119,10 @@ fun FuelScreen(
         liters: Double,
         isDivided: Boolean,
         dividedWith: String,
+        dividedCount: Int,
         notes: String,
         dateMillis: Long
-    ) -> Unit = { _, _, _, _, _, _, _, _, _, _ -> }
+    ) -> Unit = { _, _, _, _, _, _, _, _, _, _, _ -> }
 ) {
     val context = LocalContext.current
     val currencyFormat = rememberPrivacyCurrencyFormat()
@@ -902,8 +904,8 @@ fun FuelScreen(
             cards = cards,
             entryToEdit = entry,
             onDismiss = { entryToEdit = null },
-            onSave = { cardId, km, fuelType, price, liters, isDivided, dividedWith, notes, dateMillis ->
-                onUpdateFuelEntry(entry, cardId, km, fuelType, price, liters, isDivided, dividedWith, notes, dateMillis)
+            onSave = { cardId, km, fuelType, price, liters, isDivided, dividedWith, dividedCount, notes, dateMillis ->
+                onUpdateFuelEntry(entry, cardId, km, fuelType, price, liters, isDivided, dividedWith, dividedCount, notes, dateMillis)
                 entryToEdit = null
             }
         )
@@ -915,8 +917,8 @@ fun FuelScreen(
             cards = cards,
             entryToEdit = null,
             onDismiss = { showAddDialog = false },
-            onSave = { cardId, km, fuelType, price, liters, isDivided, dividedWith, notes, dateMillis ->
-                onAddFuelEntry(cardId, km, fuelType, price, liters, isDivided, dividedWith, notes, dateMillis)
+            onSave = { cardId, km, fuelType, price, liters, isDivided, dividedWith, dividedCount, notes, dateMillis ->
+                onAddFuelEntry(cardId, km, fuelType, price, liters, isDivided, dividedWith, dividedCount, notes, dateMillis)
                 showAddDialog = false
             }
         )
@@ -955,7 +957,7 @@ fun AddFuelEntryDialog(
     cards: List<CreditCard>,
     entryToEdit: FuelEntry? = null,
     onDismiss: () -> Unit,
-    onSave: (cardId: Long, km: Double, fuelType: String, pricePerLiter: Double, liters: Double, isDivided: Boolean, dividedWith: String, notes: String, dateMillis: Long) -> Unit
+    onSave: (cardId: Long, km: Double, fuelType: String, pricePerLiter: Double, liters: Double, isDivided: Boolean, dividedWith: String, dividedCount: Int, notes: String, dateMillis: Long) -> Unit
 ) {
     val context = LocalContext.current
     val currencyFormat = rememberPrivacyCurrencyFormat()
@@ -990,7 +992,7 @@ fun AddFuelEntryDialog(
 
     // Requisito 4: "Pedirá el precio de la gasolina por litro."
     var priceText by remember {
-        mutableStateOf(if (entryToEdit != null) entryToEdit.pricePerLiter.toString() else "25.80")
+        mutableStateOf(if (entryToEdit != null) entryToEdit.pricePerLiter.toString() else "")
     }
 
     // Requisito 5: "Pedirá la cantidad de litros cargados (con 5 decimales)"
@@ -999,9 +1001,14 @@ fun AddFuelEntryDialog(
     }
 
     // Requisito 6: "El gasto debe poder dividirse o asumirse meramente personal."
+    // Corrección: antes el reparto siempre se calculaba 50/50 sin importar el texto capturado aquí;
+    // ahora "dividedCountText" captura el número real de personas y ese es el que se usa para calcular
+    // el monto personal, dejando el texto libre solo como referencia informativa (con quién se divide).
     var isDivided by remember { mutableStateOf(entryToEdit?.isDivided ?: false) }
-    var dividedWithText by remember { mutableStateOf(entryToEdit?.dividedWith?.ifBlank { "50% con acompañante" } ?: "50% con acompañante") }
+    var dividedWithText by remember { mutableStateOf(entryToEdit?.dividedWith ?: "") }
+    var dividedCountText by remember { mutableStateOf((entryToEdit?.dividedCount ?: 2).toString()) }
     var notesText by remember { mutableStateOf(entryToEdit?.notes ?: "") }
+    val dividedCountValue = dividedCountText.toIntOrNull()?.coerceAtLeast(2) ?: 2
 
     // Cálculos en vivo:
     // 1. Costo total = litros x precio por litro
@@ -1410,13 +1417,36 @@ fun AddFuelEntryDialog(
 
                             if (isDivided) {
                                 Spacer(modifier = Modifier.height(8.dp))
-                                OutlinedTextField(
-                                    value = dividedWithText,
-                                    onValueChange = { dividedWithText = it },
-                                    label = { Text("Detalles de la división") },
-                                    placeholder = { Text("Ej. 50% con Familiar / Pareja") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = dividedCountText,
+                                        onValueChange = { new -> dividedCountText = new.filter { it.isDigit() }.take(2) },
+                                        label = { Text("Entre cuántas") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        singleLine = true,
+                                        modifier = Modifier.width(120.dp)
+                                    )
+                                    OutlinedTextField(
+                                        value = dividedWithText,
+                                        onValueChange = { dividedWithText = it },
+                                        label = { Text("Con quién (opcional)") },
+                                        placeholder = { Text("Ej. Familiar / Pareja") },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Text(
+                                    text = if (calculatedTotalCost > 0.0) {
+                                        "Tu parte: ${currencyFormat.format(calculatedTotalCost / dividedCountValue)} (de ${currencyFormat.format(calculatedTotalCost)} entre $dividedCountValue)"
+                                    } else {
+                                        "Tu parte se calculará entre $dividedCountValue personas"
+                                    },
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp)
                                 )
                             }
                         }
@@ -1502,6 +1532,7 @@ fun AddFuelEntryDialog(
                             litersValue,
                             isDivided,
                             if (isDivided) dividedWithText else "",
+                            dividedCountValue,
                             notesText,
                             selectedDateMillis
                         )

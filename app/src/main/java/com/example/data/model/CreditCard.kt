@@ -19,5 +19,7 @@ data class CreditCard(
     val isActive: Boolean = true,
     val isDepartmental: Boolean = false, // Requisito 9 & 10: Tarjeta departamental vs crédito bancario
     val graceDays: Int = 20,             // Requisito 7: Días de gracia entre corte y fecha límite de pago
-    val cardholderName: String = "TITULAR" // Nombre del titular de la tarjeta
+    val cardholderName: String = "TITULAR", // Nombre del titular de la tarjeta
+    val annualInterestRatePercent: Double = 55.0, // Tasa de interés anual real de la tarjeta (CAT/ordinaria), usada en simuladores de pago mínimo
+    val firestoreId: String = "" // Identificador estable (UUID) usado para sincronizar con la nube sin colisionar entre dispositivos
 )

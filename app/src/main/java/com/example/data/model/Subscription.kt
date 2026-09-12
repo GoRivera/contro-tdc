@@ -29,7 +29,8 @@ data class Subscription(
     val isActive: Boolean = true,
     val notes: String = "",
     val participantsSummary: String = "", // Cadena legible de participantes con sus montos: ej. "Participante 1: $100.00, Participante 2: $100.00"
-    val periodicity: String = "MENSUAL"   // "MENSUAL", "BIMESTRAL", "TRIMESTRAL", "SEMESTRAL", "ANUAL"
+    val periodicity: String = "MENSUAL",  // "MENSUAL", "BIMESTRAL", "TRIMESTRAL", "SEMESTRAL", "ANUAL"
+    val firestoreId: String = ""          // Identificador estable (UUID) para sincronización con la nube
 ) {
     val monthlyEquivalentAmount: Double
         get() = when (periodicity.uppercase()) {

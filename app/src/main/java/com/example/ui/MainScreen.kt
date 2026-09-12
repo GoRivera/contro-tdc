@@ -513,24 +513,36 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                 3 -> FuelScreen(
                     fuelEntries = fuelEntries,
                     cards = cards,
-                    onAddFuelEntry = { cardId, km, fuelType, price, liters, isDivided, dividedWith, notes, dateMillis ->
-                        viewModel.addFuelEntry(cardId, km, fuelType, price, liters, isDivided, dividedWith, notes, dateMillis)
+                    onAddFuelEntry = { cardId, km, fuelType, price, liters, isDivided, dividedWith, dividedCount, notes, dateMillis ->
+                        viewModel.addFuelEntry(
+                            cardId = cardId,
+                            kmDriven = km,
+                            fuelType = fuelType,
+                            pricePerLiter = price,
+                            litersLoaded = liters,
+                            isDivided = isDivided,
+                            dividedWith = dividedWith,
+                            dividedCount = dividedCount,
+                            notes = notes,
+                            dateMillis = dateMillis
+                        )
                     },
                     onDeleteFuelEntry = { entry ->
                         viewModel.deleteFuelEntry(entry)
                     },
-                    onUpdateFuelEntry = { entry, cardId, km, fuelType, price, liters, isDivided, dividedWith, notes, dateMillis ->
+                    onUpdateFuelEntry = { entry, cardId, km, fuelType, price, liters, isDivided, dividedWith, dividedCount, notes, dateMillis ->
                         viewModel.updateFuelEntry(
-                            entry,
-                            cardId,
-                            km,
-                            fuelType,
-                            price,
-                            liters,
-                            isDivided,
-                            dividedWith,
-                            notes,
-                            dateMillis
+                            entry = entry,
+                            newCardId = cardId,
+                            newKmDriven = km,
+                            newFuelType = fuelType,
+                            newPricePerLiter = price,
+                            newLitersLoaded = liters,
+                            newIsDivided = isDivided,
+                            newDividedWith = dividedWith,
+                            newDividedCount = dividedCount,
+                            newNotes = notes,
+                            newDateMillis = dateMillis
                         )
                     }
                 )
@@ -558,8 +570,22 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                     onAddCard = { name, bank, cutoff, due, limit, pColor, sColor, lastDigits, net, isDep, grace, cardholder ->
                         viewModel.addCard(name, bank, cutoff, due, limit, pColor, sColor, lastDigits, net, isDep, grace, cardholder)
                     },
-                    onUpdateCardDates = { card, newName, newCutoff, newDue, newLimit, newGrace, isDep, cardholder, pColor, sColor, newNet ->
-                        viewModel.updateCardDates(card, newName, newCutoff, newDue, newLimit, newGrace, isDep, cardholder, pColor, sColor, newNet)
+                    onUpdateCardDates = { card, newName, newCutoff, newDue, newLimit, newGrace, isDep, cardholder, pColor, sColor, newNet, newBank, newRate ->
+                        viewModel.updateCardDates(
+                            card = card,
+                            newName = newName,
+                            newCutoffDay = newCutoff,
+                            newPaymentDueDay = newDue,
+                            newLimit = newLimit,
+                            newGraceDays = newGrace,
+                            isDepartmental = isDep,
+                            cardholderName = cardholder,
+                            primaryColorHex = pColor,
+                            secondaryColorHex = sColor,
+                            newNetwork = newNet,
+                            newBank = newBank,
+                            newAnnualInterestRatePercent = newRate
+                        )
                     },
                     onDeleteCard = { viewModel.deleteCard(it) }
                 )

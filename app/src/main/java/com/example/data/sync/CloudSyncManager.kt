@@ -7,7 +7,7 @@ import com.example.data.model.Expense
 import com.example.data.model.FuelEntry
 import com.example.data.model.Payment
 import com.example.data.model.Subscription
-import com.example.data.model.UserProfile
+import com.example.data.model.SubscriptionPaymentTracking
 import com.example.data.repository.CardRepository
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
@@ -20,10 +20,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
 /**
  * Gestor central de sincronización en la nube mediante Cloud Firestore (Spark Plan 100% Gratuito).
  * Mantiene la base de datos local (Room) como fuente primaria y sincroniza con Firestore bajo /users/{uid}/...
+ *
+ * Todas las entidades se identifican en la nube por un `firestoreId` (UUID) estable, generado una sola vez
+ * al crear el registro localmente. Esto evita que dos dispositivos distintos, cada uno con su propia
+ * numeración autoincremental de Room (1, 2, 3...), terminen sobrescribiéndose entre sí al sincronizar:
+ * el emparejamiento entre nube y base de datos local siempre se hace por `firestoreId`, nunca por el
+ * id numérico local. Las relaciones entre entidades (tarjeta de un gasto, suscripción de un tracking, etc.)
+ * también viajan a la nube como el `firestoreId` de la entidad relacionada, para poder remapearlas
+ * correctamente sin importar qué id numérico les asigne Room en el dispositivo de destino.
  */
 class CloudSyncManager(
     private val context: Context,
@@ -75,6 +84,50 @@ class CloudSyncManager(
         }
     }
 
+    // --- Helpers para garantizar firestoreId estable en registros creados antes de esta versión ---
+
+    private suspend fun ensureCardFirestoreId(card: CreditCard): CreditCard {
+        if (card.firestoreId.isNotBlank()) return card
+        val updated = card.copy(firestoreId = UUID.randomUUID().toString())
+        repository.updateCard(updated)
+        return updated
+    }
+
+    private suspend fun ensureExpenseFirestoreId(expense: Expense): Expense {
+        if (expense.firestoreId.isNotBlank()) return expense
+        val updated = expense.copy(firestoreId = UUID.randomUUID().toString())
+        repository.updateExpense(updated)
+        return updated
+    }
+
+    private suspend fun ensurePaymentFirestoreId(payment: Payment): Payment {
+        if (payment.firestoreId.isNotBlank()) return payment
+        val updated = payment.copy(firestoreId = UUID.randomUUID().toString())
+        repository.updatePayment(updated)
+        return updated
+    }
+
+    private suspend fun ensureSubscriptionFirestoreId(subscription: Subscription): Subscription {
+        if (subscription.firestoreId.isNotBlank()) return subscription
+        val updated = subscription.copy(firestoreId = UUID.randomUUID().toString())
+        repository.updateSubscription(updated)
+        return updated
+    }
+
+    private suspend fun ensureTrackingFirestoreId(tracking: SubscriptionPaymentTracking): SubscriptionPaymentTracking {
+        if (tracking.firestoreId.isNotBlank()) return tracking
+        val updated = tracking.copy(firestoreId = UUID.randomUUID().toString())
+        repository.updateTracking(updated)
+        return updated
+    }
+
+    private suspend fun ensureFuelEntryFirestoreId(entry: FuelEntry): FuelEntry {
+        if (entry.firestoreId.isNotBlank()) return entry
+        val updated = entry.copy(firestoreId = UUID.randomUUID().toString())
+        repository.updateFuelEntry(updated)
+        return updated
+    }
+
     /**
      * Sube todos los registros locales existentes a Firestore bajo la cuenta autenticada.
      */
@@ -97,19 +150,26 @@ class CloudSyncManager(
             val firestore = FirebaseFirestore.getInstance()
             val userDocRef = firestore.collection("users").document(user.uid)
 
-            // 1. Obtener datos locales
-            val cards = repository.allCards.first()
-            val expenses = repository.allExpenses.first()
-            val payments = repository.allPayments.first()
-            val subscriptions = repository.allSubscriptions.first()
-            val fuelEntries = repository.allFuelEntries.first()
+            // 1. Obtener datos locales y garantizar que todos tengan un firestoreId estable
+            val cards = repository.allCards.first().map { ensureCardFirestoreId(it) }
+            val cardFidByLocalId = cards.associate { it.id to it.firestoreId }
 
-            // 2. Subir tarjetas
+            val subscriptions = repository.allSubscriptions.first().map { ensureSubscriptionFirestoreId(it) }
+            val subFidByLocalId = subscriptions.associate { it.id to it.firestoreId }
+
+            val expenses = repository.allExpenses.first().map { ensureExpenseFirestoreId(it) }
+            val expenseFidByLocalId = expenses.associate { it.id to it.firestoreId }
+
+            val payments = repository.allPayments.first().map { ensurePaymentFirestoreId(it) }
+            val trackings = repository.allTrackings.first().map { ensureTrackingFirestoreId(it) }
+            val fuelEntries = repository.allFuelEntries.first().map { ensureFuelEntryFirestoreId(it) }
+
             val batch = firestore.batch()
+
             for (card in cards) {
-                val doc = userDocRef.collection("cards").document(card.id.toString())
+                val doc = userDocRef.collection("cards").document(card.firestoreId)
                 val map = hashMapOf(
-                    "id" to card.id,
+                    "firestoreId" to card.firestoreId,
                     "name" to card.name,
                     "bank" to card.bank,
                     "cutoffDay" to card.cutoffDay,
@@ -122,17 +182,36 @@ class CloudSyncManager(
                     "isActive" to card.isActive,
                     "isDepartmental" to card.isDepartmental,
                     "graceDays" to card.graceDays,
-                    "cardholderName" to card.cardholderName
+                    "cardholderName" to card.cardholderName,
+                    "annualInterestRatePercent" to card.annualInterestRatePercent
+                )
+                batch.set(doc, map, SetOptions.merge())
+            }
+
+            for (sub in subscriptions) {
+                val doc = userDocRef.collection("subscriptions").document(sub.firestoreId)
+                val map = hashMapOf(
+                    "firestoreId" to sub.firestoreId,
+                    "name" to sub.name,
+                    "cardFirestoreId" to (cardFidByLocalId[sub.cardId] ?: ""),
+                    "billingDayOfMonth" to sub.billingDayOfMonth,
+                    "totalMonthlyAmount" to sub.totalMonthlyAmount,
+                    "category" to sub.category,
+                    "startMonth" to sub.startMonth,
+                    "isActive" to sub.isActive,
+                    "notes" to sub.notes,
+                    "participantsSummary" to sub.participantsSummary,
+                    "periodicity" to sub.periodicity
                 )
                 batch.set(doc, map, SetOptions.merge())
             }
 
             // Subir gastos
             for (exp in expenses) {
-                val doc = userDocRef.collection("expenses").document(exp.id.toString())
+                val doc = userDocRef.collection("expenses").document(exp.firestoreId)
                 val map = hashMapOf(
-                    "id" to exp.id,
-                    "cardId" to exp.cardId,
+                    "firestoreId" to exp.firestoreId,
+                    "cardFirestoreId" to (cardFidByLocalId[exp.cardId] ?: ""),
                     "concept" to exp.concept,
                     "amount" to exp.amount,
                     "dateMillis" to exp.dateMillis,
@@ -145,17 +224,17 @@ class CloudSyncManager(
                     "notes" to exp.notes,
                     "targetStatementMonth" to exp.targetStatementMonth,
                     "isSubscription" to exp.isSubscription,
-                    "subscriptionId" to (exp.subscriptionId ?: 0L)
+                    "subscriptionFirestoreId" to (exp.subscriptionId?.let { subFidByLocalId[it] } ?: "")
                 )
                 batch.set(doc, map, SetOptions.merge())
             }
 
             // Subir pagos
             for (pay in payments) {
-                val doc = userDocRef.collection("payments").document(pay.id.toString())
+                val doc = userDocRef.collection("payments").document(pay.firestoreId)
                 val map = hashMapOf(
-                    "id" to pay.id,
-                    "cardId" to pay.cardId,
+                    "firestoreId" to pay.firestoreId,
+                    "cardFirestoreId" to (cardFidByLocalId[pay.cardId] ?: ""),
                     "concept" to pay.concept,
                     "amount" to pay.amount,
                     "dateMillis" to pay.dateMillis,
@@ -166,31 +245,28 @@ class CloudSyncManager(
                 batch.set(doc, map, SetOptions.merge())
             }
 
-            // Subir suscripciones
-            for (sub in subscriptions) {
-                val doc = userDocRef.collection("subscriptions").document(sub.id.toString())
+            // Subir seguimiento de pagos de suscripciones (quién ya pagó cada mes)
+            for (t in trackings) {
+                val doc = userDocRef.collection("subscriptionTrackings").document(t.firestoreId)
                 val map = hashMapOf(
-                    "id" to sub.id,
-                    "name" to sub.name,
-                    "cardId" to sub.cardId,
-                    "billingDayOfMonth" to sub.billingDayOfMonth,
-                    "totalMonthlyAmount" to sub.totalMonthlyAmount,
-                    "category" to sub.category,
-                    "startMonth" to sub.startMonth,
-                    "isActive" to sub.isActive,
-                    "notes" to sub.notes,
-                    "participantsSummary" to sub.participantsSummary
+                    "firestoreId" to t.firestoreId,
+                    "subscriptionFirestoreId" to (subFidByLocalId[t.subscriptionId] ?: ""),
+                    "yearMonth" to t.yearMonth,
+                    "participantName" to t.participantName,
+                    "amountOwed" to t.amountOwed,
+                    "isPaid" to t.isPaid,
+                    "paidDateMillis" to (t.paidDateMillis ?: 0L)
                 )
                 batch.set(doc, map, SetOptions.merge())
             }
 
             // Subir gasolina
             for (fuel in fuelEntries) {
-                val doc = userDocRef.collection("fuel").document(fuel.id.toString())
+                val doc = userDocRef.collection("fuel").document(fuel.firestoreId)
                 val map = hashMapOf(
-                    "id" to fuel.id,
-                    "cardId" to fuel.cardId,
-                    "expenseId" to (fuel.expenseId ?: 0L),
+                    "firestoreId" to fuel.firestoreId,
+                    "cardFirestoreId" to (cardFidByLocalId[fuel.cardId] ?: ""),
+                    "expenseFirestoreId" to (fuel.expenseId?.let { expenseFidByLocalId[it] } ?: ""),
                     "kmDriven" to fuel.kmDriven,
                     "fuelType" to fuel.fuelType,
                     "pricePerLiter" to fuel.pricePerLiter,
@@ -200,6 +276,7 @@ class CloudSyncManager(
                     "isDivided" to fuel.isDivided,
                     "personalShare" to fuel.personalShare,
                     "dividedWith" to fuel.dividedWith,
+                    "dividedCount" to fuel.dividedCount,
                     "dateMillis" to fuel.dateMillis,
                     "notes" to fuel.notes
                 )
@@ -228,7 +305,11 @@ class CloudSyncManager(
     }
 
     /**
-     * Descarga y restaura los datos de la nube hacia la base de datos local en un nuevo dispositivo.
+     * Descarga y restaura los datos de la nube hacia la base de datos local, incluyendo tarjetas, gastos,
+     * pagos/abonos, suscripciones, su seguimiento mensual de pagos y cargas de gasolina (las seis
+     * colecciones que se suben en [uploadAllLocalDataToCloud]). El emparejamiento con registros locales
+     * existentes se hace por `firestoreId`, así que restaurar es seguro incluso en un dispositivo que ya
+     * tenga datos propios: nunca sobrescribe un registro local que no corresponda al mismo `firestoreId`.
      */
     suspend fun restoreFromCloudToLocal(): Result<Unit> = withContext(Dispatchers.IO) {
         if (!isFirebaseInitialized) {
@@ -249,12 +330,16 @@ class CloudSyncManager(
             val firestore = FirebaseFirestore.getInstance()
             val userDocRef = firestore.collection("users").document(user.uid)
 
-            // Descargar tarjetas
+            // 1. Restaurar tarjetas primero: son la base de la que dependen gastos, pagos, suscripciones y gasolina
+            val cardLocalIdByFid = mutableMapOf<String, Long>()
             val cardsSnap = userDocRef.collection("cards").get().await()
             for (doc in cardsSnap.documents) {
                 val data = doc.data ?: continue
+                val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
+                val existing = repository.getCardByFirestoreId(fid)
                 val card = CreditCard(
-                    id = (data["id"] as? Number)?.toLong() ?: 0L,
+                    id = existing?.id ?: 0L,
+                    firestoreId = fid,
                     name = data["name"] as? String ?: "Tarjeta",
                     bank = data["bank"] as? String ?: "Banco",
                     cutoffDay = (data["cutoffDay"] as? Number)?.toInt() ?: 1,
@@ -267,19 +352,65 @@ class CloudSyncManager(
                     isActive = data["isActive"] as? Boolean ?: true,
                     isDepartmental = data["isDepartmental"] as? Boolean ?: false,
                     graceDays = (data["graceDays"] as? Number)?.toInt() ?: 20,
-                    cardholderName = data["cardholderName"] as? String ?: "Titular"
+                    cardholderName = data["cardholderName"] as? String ?: "Titular",
+                    annualInterestRatePercent = (data["annualInterestRatePercent"] as? Number)?.toDouble() ?: 55.0
                 )
-                repository.insertCard(card)
+                val localId = if (existing != null) {
+                    repository.updateCard(card)
+                    existing.id
+                } else {
+                    repository.insertCard(card)
+                }
+                cardLocalIdByFid[fid] = localId
             }
 
-            // Descargar gastos
+            // 2. Restaurar suscripciones (antes de gastos y de su seguimiento de pagos, que dependen de ellas)
+            val subLocalIdByFid = mutableMapOf<String, Long>()
+            val subsSnap = userDocRef.collection("subscriptions").get().await()
+            for (doc in subsSnap.documents) {
+                val data = doc.data ?: continue
+                val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
+                val cardFid = data["cardFirestoreId"] as? String ?: ""
+                val localCardId = cardLocalIdByFid[cardFid] ?: 0L
+                val existing = repository.getSubscriptionByFirestoreId(fid)
+                val sub = Subscription(
+                    id = existing?.id ?: 0L,
+                    firestoreId = fid,
+                    name = data["name"] as? String ?: "Suscripción",
+                    cardId = localCardId,
+                    billingDayOfMonth = (data["billingDayOfMonth"] as? Number)?.toInt() ?: 1,
+                    totalMonthlyAmount = (data["totalMonthlyAmount"] as? Number)?.toDouble() ?: 0.0,
+                    category = data["category"] as? String ?: "Servicios",
+                    startMonth = data["startMonth"] as? String ?: "2026-01",
+                    isActive = data["isActive"] as? Boolean ?: true,
+                    notes = data["notes"] as? String ?: "",
+                    participantsSummary = data["participantsSummary"] as? String ?: "",
+                    periodicity = data["periodicity"] as? String ?: "MENSUAL"
+                )
+                val localId = if (existing != null) {
+                    repository.updateSubscription(sub)
+                    existing.id
+                } else {
+                    repository.insertSubscription(sub)
+                }
+                subLocalIdByFid[fid] = localId
+            }
+
+            // 3. Restaurar gastos
+            val expenseLocalIdByFid = mutableMapOf<String, Long>()
             val expensesSnap = userDocRef.collection("expenses").get().await()
             for (doc in expensesSnap.documents) {
                 val data = doc.data ?: continue
-                val subIdVal = (data["subscriptionId"] as? Number)?.toLong()
+                val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
+                val cardFid = data["cardFirestoreId"] as? String ?: ""
+                val localCardId = cardLocalIdByFid[cardFid] ?: continue
+                val subFid = data["subscriptionFirestoreId"] as? String ?: ""
+                val localSubId = if (subFid.isNotBlank()) subLocalIdByFid[subFid] else null
+                val existing = repository.getExpenseByFirestoreId(fid)
                 val expense = Expense(
-                    id = (data["id"] as? Number)?.toLong() ?: 0L,
-                    cardId = (data["cardId"] as? Number)?.toLong() ?: 1L,
+                    id = existing?.id ?: 0L,
+                    firestoreId = fid,
+                    cardId = localCardId,
                     concept = data["concept"] as? String ?: "Gasto",
                     amount = (data["amount"] as? Number)?.toDouble() ?: 0.0,
                     dateMillis = (data["dateMillis"] as? Number)?.toLong() ?: System.currentTimeMillis(),
@@ -292,9 +423,91 @@ class CloudSyncManager(
                     notes = data["notes"] as? String ?: "",
                     targetStatementMonth = data["targetStatementMonth"] as? String ?: "",
                     isSubscription = data["isSubscription"] as? Boolean ?: false,
-                    subscriptionId = if (subIdVal != null && subIdVal > 0) subIdVal else null
+                    subscriptionId = localSubId,
+                    firestoreId = fid
                 )
-                repository.insertExpense(expense)
+                val localId = if (existing != null) {
+                    repository.updateExpense(expense)
+                    existing.id
+                } else {
+                    repository.insertExpense(expense)
+                }
+                expenseLocalIdByFid[fid] = localId
+            }
+
+            // 4. Restaurar pagos/abonos
+            val paymentsSnap = userDocRef.collection("payments").get().await()
+            for (doc in paymentsSnap.documents) {
+                val data = doc.data ?: continue
+                val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
+                val cardFid = data["cardFirestoreId"] as? String ?: ""
+                val localCardId = cardLocalIdByFid[cardFid] ?: continue
+                val existing = repository.getPaymentByFirestoreId(fid)
+                val payment = Payment(
+                    id = existing?.id ?: 0L,
+                    cardId = localCardId,
+                    concept = data["concept"] as? String ?: "Pago",
+                    amount = (data["amount"] as? Number)?.toDouble() ?: 0.0,
+                    dateMillis = (data["dateMillis"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+                    sourcePayer = data["sourcePayer"] as? String ?: "Personal",
+                    targetStatementMonth = data["targetStatementMonth"] as? String ?: "",
+                    notes = data["notes"] as? String ?: "",
+                    firestoreId = fid
+                )
+                if (existing != null) repository.updatePayment(payment) else repository.insertPayment(payment)
+            }
+
+            // 5. Restaurar seguimiento de pagos de suscripciones (quién ya pagó cada mes)
+            val trackingsSnap = userDocRef.collection("subscriptionTrackings").get().await()
+            for (doc in trackingsSnap.documents) {
+                val data = doc.data ?: continue
+                val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
+                val subFid = data["subscriptionFirestoreId"] as? String ?: ""
+                val localSubId = subLocalIdByFid[subFid] ?: continue
+                val existing = repository.getTrackingByFirestoreId(fid)
+                val paidMillis = (data["paidDateMillis"] as? Number)?.toLong() ?: 0L
+                val tracking = SubscriptionPaymentTracking(
+                    id = existing?.id ?: 0L,
+                    subscriptionId = localSubId,
+                    yearMonth = data["yearMonth"] as? String ?: "",
+                    participantName = data["participantName"] as? String ?: "",
+                    amountOwed = (data["amountOwed"] as? Number)?.toDouble() ?: 0.0,
+                    isPaid = data["isPaid"] as? Boolean ?: false,
+                    paidDateMillis = if (paidMillis > 0L) paidMillis else null,
+                    firestoreId = fid
+                )
+                if (existing != null) repository.updateTracking(tracking) else repository.insertTracking(tracking)
+            }
+
+            // 6. Restaurar cargas de combustible
+            val fuelSnap = userDocRef.collection("fuel").get().await()
+            for (doc in fuelSnap.documents) {
+                val data = doc.data ?: continue
+                val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
+                val cardFid = data["cardFirestoreId"] as? String ?: ""
+                val localCardId = cardLocalIdByFid[cardFid] ?: continue
+                val expenseFid = data["expenseFirestoreId"] as? String ?: ""
+                val localExpenseId = if (expenseFid.isNotBlank()) expenseLocalIdByFid[expenseFid] else null
+                val existing = repository.getFuelEntryByFirestoreId(fid)
+                val entry = FuelEntry(
+                    id = existing?.id ?: 0L,
+                    cardId = localCardId,
+                    expenseId = localExpenseId,
+                    kmDriven = (data["kmDriven"] as? Number)?.toDouble() ?: 0.0,
+                    fuelType = data["fuelType"] as? String ?: "",
+                    pricePerLiter = (data["pricePerLiter"] as? Number)?.toDouble() ?: 0.0,
+                    litersLoaded = (data["litersLoaded"] as? Number)?.toDouble() ?: 0.0,
+                    totalCost = (data["totalCost"] as? Number)?.toDouble() ?: 0.0,
+                    efficiencyKmPerL = (data["efficiencyKmPerL"] as? Number)?.toDouble() ?: 0.0,
+                    isDivided = data["isDivided"] as? Boolean ?: false,
+                    personalShare = (data["personalShare"] as? Number)?.toDouble() ?: 0.0,
+                    dividedWith = data["dividedWith"] as? String ?: "",
+                    dividedCount = (data["dividedCount"] as? Number)?.toInt() ?: 2,
+                    dateMillis = (data["dateMillis"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+                    notes = data["notes"] as? String ?: "",
+                    firestoreId = fid
+                )
+                if (existing != null) repository.updateFuelEntry(entry) else repository.insertFuelEntry(entry)
             }
 
             _syncState.value = SyncState.Success("Datos restaurados exitosamente desde la nube.")

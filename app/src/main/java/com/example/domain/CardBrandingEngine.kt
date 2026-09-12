@@ -210,7 +210,7 @@ object CardBrandingEngine {
             }
 
             // NU / NUBANK
-            combined.contains("nu") || combined.contains("nubank") -> when {
+            Regex("\\bnu\\b").containsMatchIn(combined) || combined.contains("nubank") -> when {
                 combined.contains("ultravioleta") -> RealCardBranding(
                     bankDisplayName = "Nu",
                     cardModelName = "Ultravioleta",
@@ -358,7 +358,7 @@ object CardBrandingEngine {
             )
 
             // HEY BANCO
-            combined.contains("hey") -> RealCardBranding(
+            Regex("\\bhey\\b").containsMatchIn(combined) -> RealCardBranding(
                 bankDisplayName = "Hey Banco",
                 cardModelName = "Crédito",
                 primaryColorHex = 0xFF181818,
@@ -370,7 +370,7 @@ object CardBrandingEngine {
             )
 
             // PLATA CARD
-            combined.contains("plata") -> RealCardBranding(
+            Regex("\\bplata\\b").containsMatchIn(combined) -> RealCardBranding(
                 bankDisplayName = "Plata",
                 cardModelName = "Card",
                 primaryColorHex = 0xFF222222,

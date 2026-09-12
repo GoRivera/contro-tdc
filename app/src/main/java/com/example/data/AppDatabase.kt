@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [CreditCard::class, Expense::class, Payment::class, Subscription::class, SubscriptionPaymentTracking::class, FuelEntry::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -43,6 +43,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Agrega el identificador estable `firestoreId` (UUID) a todas las tablas sincronizables,
+         * para eliminar la colisión de IDs entre dispositivos al sincronizar con la nube, además de
+         * la tasa de interés real por tarjeta y el número de personas entre las que se divide una carga
+         * de combustible.
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE credit_cards ADD COLUMN firestoreId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE credit_cards ADD COLUMN annualInterestRatePercent REAL NOT NULL DEFAULT 55.0")
+                db.execSQL("ALTER TABLE expenses ADD COLUMN firestoreId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE payments ADD COLUMN firestoreId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE subscriptions ADD COLUMN firestoreId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE subscription_payment_trackings ADD COLUMN firestoreId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE fuel_entries ADD COLUMN firestoreId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE fuel_entries ADD COLUMN dividedCount INTEGER NOT NULL DEFAULT 2")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -50,7 +69,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "credit_cards_manager.db"
                 )
-                    .addMigrations(MIGRATION_4_5)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
                     .fallbackToDestructiveMigration()
                     .addCallback(AppDatabaseCallback(scope))
                     .build()

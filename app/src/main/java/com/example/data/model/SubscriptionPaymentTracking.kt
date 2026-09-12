@@ -25,5 +25,6 @@ data class SubscriptionPaymentTracking(
     val participantName: String,   // Nombre del participante
     val amountOwed: Double,
     val isPaid: Boolean = false,
-    val paidDateMillis: Long? = null
+    val paidDateMillis: Long? = null,
+    val firestoreId: String = "" // Identificador estable (UUID) para sincronización con la nube
 )

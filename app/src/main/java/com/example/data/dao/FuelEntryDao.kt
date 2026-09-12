@@ -17,6 +17,9 @@ interface FuelEntryDao {
     @Query("SELECT * FROM fuel_entries WHERE dateMillis >= :sinceMillis ORDER BY dateMillis DESC")
     fun getFuelEntriesSince(sinceMillis: Long): Flow<List<FuelEntry>>
 
+    @Query("SELECT * FROM fuel_entries WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getFuelEntryByFirestoreId(firestoreId: String): FuelEntry?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFuelEntry(entry: FuelEntry): Long
 

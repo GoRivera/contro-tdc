@@ -544,7 +544,7 @@ fun BankBrandLogo(bankName: String, isCompact: Boolean = false, modifier: Modifi
                     )
                 }
             }
-            bLower.contains("nu") -> {
+            Regex("\\bnu\\b").containsMatchIn(bLower) -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
@@ -680,7 +680,7 @@ fun BankBrandLogo(bankName: String, isCompact: Boolean = false, modifier: Modifi
                     )
                 }
             }
-            bLower.contains("hey") -> {
+            Regex("\\bhey\\b").containsMatchIn(bLower) -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "hey",
@@ -702,7 +702,7 @@ fun BankBrandLogo(bankName: String, isCompact: Boolean = false, modifier: Modifi
                     )
                 }
             }
-            bLower.contains("plata") -> {
+            Regex("\\bplata\\b").containsMatchIn(bLower) -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = CircleShape,
@@ -996,7 +996,7 @@ fun BankBrandBadge(bankName: String, modifier: Modifier = Modifier.size(34.dp)) 
                     }
                 }
             }
-            bLower.contains("nu") -> {
+            Regex("\\bnu\\b").containsMatchIn(bLower) -> {
                 Surface(
                     color = Color(0xFF820AD1),
                     modifier = Modifier.fillMaxSize(),
@@ -1092,7 +1092,7 @@ fun BankBrandBadge(bankName: String, modifier: Modifier = Modifier.size(34.dp)) 
                     }
                 }
             }
-            bLower.contains("hey") -> {
+            Regex("\\bhey\\b").containsMatchIn(bLower) -> {
                 Surface(
                     color = Color(0xFF1E1E1E),
                     modifier = Modifier.fillMaxSize(),
@@ -1116,7 +1116,7 @@ fun BankBrandBadge(bankName: String, modifier: Modifier = Modifier.size(34.dp)) 
                     }
                 }
             }
-            bLower.contains("plata") -> {
+            Regex("\\bplata\\b").containsMatchIn(bLower) -> {
                 Surface(
                     color = Color(0xFF2C2C2C),
                     modifier = Modifier.fillMaxSize(),

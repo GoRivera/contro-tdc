@@ -23,6 +23,9 @@ interface PaymentDao {
     @Query("SELECT * FROM payments WHERE targetStatementMonth = :statementMonth AND cardId = :cardId ORDER BY dateMillis DESC")
     fun getPaymentsByStatementAndCard(statementMonth: String, cardId: Long): Flow<List<Payment>>
 
+    @Query("SELECT * FROM payments WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getPaymentByFirestoreId(firestoreId: String): Payment?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPayment(payment: Payment): Long
 
