@@ -387,8 +387,9 @@ object CreditCardCalculator {
             firstChargeCal.add(Calendar.MONTH, 1)
         }
 
-        val firstChargeMonthName = monthFormat.format(firstChargeCal.time).replaceFirstChar { it.uppercase() }
-        val firstChargeFull = "$firstChargeMonthName ${firstChargeCal.get(Calendar.YEAR)}"
+        // Corrección: monthFormat ya tiene el patrón "MMMM yyyy" (incluye el año), así que antes
+        // se concatenaba el año una segunda vez (p. ej. "Octubre 2025 2025").
+        val firstChargeFull = monthFormat.format(firstChargeCal.time).replaceFirstChar { it.uppercase() }
 
         // Determinar el mes de corte de referencia
         val refCal = Calendar.getInstance()
@@ -437,8 +438,7 @@ object CreditCardCalculator {
         val remaining = (total - currentInst).coerceAtLeast(0)
         val completed = currentInst > total
 
-        val refMonthName = monthFormat.format(refCal.time).replaceFirstChar { it.uppercase() }
-        val refFull = "$refMonthName ${refCal.get(Calendar.YEAR)}"
+        val refFull = monthFormat.format(refCal.time).replaceFirstChar { it.uppercase() }
 
         val explanation = when {
             completed -> "El plan de $total MSI inició en $firstChargeFull y ya cubrió sus $total mensualidades."
@@ -456,6 +456,36 @@ object CreditCardCalculator {
             targetStatementMonth = refFull,
             explanation = explanation
         )
+    }
+
+    /**
+     * Calcula el mes de corte ("targetStatementMonth") que corresponde a una cuota específica de un
+     * MSI, a partir de la fecha real de compra y el día de corte de la tarjeta.
+     *
+     * Se usa al editar un MSI para mantener siempre sincronizados fecha de compra, cuota actual y
+     * mes de corte: antes, editar la cuota actual o el plazo no recalculaba el mes de corte
+     * guardado, por lo que la tabla de amortización podía terminar mostrando cuotas en meses
+     * anteriores a la fecha de compra real (algo imposible).
+     */
+    fun calculateStatementMonthForInstallment(purchaseDateMillis: Long, cardCutoffDay: Int, installmentNumber: Int): String {
+        val purchaseCal = Calendar.getInstance().apply { timeInMillis = purchaseDateMillis }
+        val purchaseDay = purchaseCal.get(Calendar.DAY_OF_MONTH)
+
+        val installmentCal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, purchaseCal.get(Calendar.YEAR))
+            set(Calendar.MONTH, purchaseCal.get(Calendar.MONTH))
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 12)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        if (purchaseDay > cardCutoffDay) {
+            installmentCal.add(Calendar.MONTH, 1)
+        }
+        installmentCal.add(Calendar.MONTH, (installmentNumber - 1).coerceAtLeast(0))
+
+        return monthFormat.format(installmentCal.time).replaceFirstChar { it.uppercase() }
     }
 
     /**
@@ -699,7 +729,13 @@ object CreditCardCalculator {
             norm.startsWith("dic") -> 11
             else -> 7
         }
-        cal.set(statementYear, monthIdx, 15, 12, 0, 0)
+        // Corrección: antes se fijaba el día 15, un valor arbitrario que no tenía relación con el
+        // día de corte real de la tarjeta. Como calculateMsiAutoTimeline decide el mes del primer
+        // cargo comparando "día de compra" contra "día de corte", el día 15 podía quedar por encima
+        // del corte real de la tarjeta y desplazar el mes de primer cargo un mes de más al
+        // recalcularlo — desincronizando el avance de cuotas mostrado. El día 1 siempre es menor o
+        // igual a cualquier día de corte válido (1-31), así que nunca provoca ese desplazamiento.
+        cal.set(statementYear, monthIdx, 1, 12, 0, 0)
         val monthsAgo = (currentInstallment - 1).coerceAtLeast(0)
         cal.add(Calendar.MONTH, -monthsAgo)
         return cal.timeInMillis

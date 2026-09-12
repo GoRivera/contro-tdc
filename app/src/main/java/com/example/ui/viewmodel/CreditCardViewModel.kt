@@ -463,8 +463,21 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
     fun advanceMsiInstallment(expense: Expense) {
         viewModelScope.launch {
             if (expense.isMsi && expense.msiCurrentInstallment < expense.msiTotalMonths) {
+                val nextInstallment = expense.msiCurrentInstallment + 1
+                // Mantiene targetStatementMonth sincronizado con la fecha de compra real al avanzar.
+                val card = allCards.value.firstOrNull { it.id == expense.cardId }
+                val newTargetStatementMonth = if (card != null) {
+                    CreditCardCalculator.calculateStatementMonthForInstallment(
+                        purchaseDateMillis = expense.dateMillis,
+                        cardCutoffDay = card.cutoffDay,
+                        installmentNumber = nextInstallment
+                    )
+                } else {
+                    expense.targetStatementMonth
+                }
                 val updated = expense.copy(
-                    msiCurrentInstallment = expense.msiCurrentInstallment + 1
+                    msiCurrentInstallment = nextInstallment,
+                    targetStatementMonth = newTargetStatementMonth
                 )
                 repository.updateExpense(updated)
             }
@@ -985,6 +998,23 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 newMonthlyAmount * newTotalMonths
             }
 
+            // Corrección: editar la cuota actual o el plazo no recalculaba el mes de corte guardado
+            // (targetStatementMonth), que quedaba desincronizado de la fecha real de compra —
+            // la tabla de amortización podía terminar mostrando cuotas en meses anteriores a esa
+            // fecha, algo imposible. Ahora se recalcula siempre a partir de la fecha de compra real
+            // (expense.dateMillis, que esta pantalla no modifica) y el día de corte de la tarjeta.
+            val safeCurrentInstallment = newCurrentInstallment.coerceIn(0, newTotalMonths)
+            val card = allCards.value.firstOrNull { it.id == newCardId }
+            val newTargetStatementMonth = if (card != null && safeCurrentInstallment >= 1) {
+                CreditCardCalculator.calculateStatementMonthForInstallment(
+                    purchaseDateMillis = expense.dateMillis,
+                    cardCutoffDay = card.cutoffDay,
+                    installmentNumber = safeCurrentInstallment
+                )
+            } else {
+                expense.targetStatementMonth
+            }
+
             val updated = expense.copy(
                 concept = newConcept.trim().ifBlank { expense.concept },
                 amount = calculatedMonthly,
@@ -993,7 +1023,8 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 beneficiary = newBeneficiary.trim().ifBlank { expense.beneficiary },
                 category = newCategory.trim().ifBlank { expense.category },
                 msiTotalMonths = newTotalMonths.coerceAtLeast(1),
-                msiCurrentInstallment = newCurrentInstallment.coerceIn(0, newTotalMonths),
+                msiCurrentInstallment = safeCurrentInstallment,
+                targetStatementMonth = newTargetStatementMonth,
                 notes = newNotes
             )
             repository.updateExpense(updated)

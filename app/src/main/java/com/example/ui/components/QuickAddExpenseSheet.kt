@@ -293,11 +293,28 @@ fun QuickAddExpenseSheet(
                     }
                 }
             } else {
-                // Modo Monto Fijo ($)
-                activeParticipants.map { person ->
-                    val textVal = customFixedAmounts[person] ?: ""
-                    val fixed = CreditCardCalculator.parseLocalizedDouble(textVal) ?: (capturedTotalAmount / count)
-                    person to fixed
+                // Modo Monto Fijo ($): "Personal" siempre asume el restante (total menos lo asignado
+                // a los demás participantes), sin importar cuántos participantes haya. Antes esto
+                // solo funcionaba por coincidencia cuando había exactamente 2 participantes (el
+                // "complemento" se escribía directo en el otro campo); con 3 o más nadie se ajustaba.
+                if (activeParticipants.contains("Personal")) {
+                    val nonPersonal = activeParticipants.filter { it != "Personal" }
+                    val sumOthers = nonPersonal.sumOf { p -> CreditCardCalculator.parseLocalizedDouble(customFixedAmounts[p]) ?: 0.0 }
+                    val personalShare = (capturedTotalAmount - sumOthers).coerceAtLeast(0.0)
+                    activeParticipants.map { person ->
+                        if (person == "Personal") {
+                            person to personalShare
+                        } else {
+                            person to (CreditCardCalculator.parseLocalizedDouble(customFixedAmounts[person]) ?: 0.0)
+                        }
+                    }
+                } else {
+                    // Sin "Personal" en la división no hay quién absorba el remanente automáticamente.
+                    activeParticipants.map { person ->
+                        val textVal = customFixedAmounts[person] ?: ""
+                        val fixed = CreditCardCalculator.parseLocalizedDouble(textVal) ?: (capturedTotalAmount / count)
+                        person to fixed
+                    }
                 }
             }
         }
@@ -1497,25 +1514,30 @@ fun QuickAddExpenseSheet(
                                                         }
                                                     }
                                                 }
-                                            } else {
-                                                // MODO MONTO FIJO ($) AUTO-AJUSTABLE (Suma Total)
+                                            } else if (person == "Personal") {
+                                                // "Personal" siempre asume el restante automáticamente: se muestra de solo
+                                                // lectura para que quede claro que no se edita directamente.
                                                 OutlinedTextField(
-                                                    value = customFixedAmounts[person] ?: (if (capturedTotalAmount > 0) String.format(Locale.US, "%.2f", capturedTotalAmount / activeParticipants.size) else ""),
+                                                    value = String.format(Locale.US, "%.2f", assignedAmount),
+                                                    onValueChange = {},
+                                                    label = { Text("Monto asignado a Personal · automático") },
+                                                    leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null) },
+                                                    readOnly = true,
+                                                    singleLine = true,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            } else {
+                                                // MODO MONTO FIJO ($): el resto de los participantes captura su monto
+                                                // libremente; "Personal" absorbe lo que falte (ver participantShares).
+                                                OutlinedTextField(
+                                                    value = customFixedAmounts[person] ?: "",
                                                     onValueChange = { newVal ->
                                                         val updated = customFixedAmounts.toMutableMap()
-                                                        updated[person] = newVal
-
-                                                        val enteredVal = newVal.toDoubleOrNull()
-                                                        if (enteredVal != null && capturedTotalAmount > 0) {
-                                                            val others = activeParticipants.filter { it != person }
-                                                            if (others.size == 1) {
-                                                                val complement = (capturedTotalAmount - enteredVal).coerceAtLeast(0.0)
-                                                                updated[others[0]] = String.format(Locale.US, "%.2f", complement)
-                                                            }
-                                                        }
+                                                        updated[person] = newVal.filter { c -> c.isDigit() || c == '.' }
                                                         customFixedAmounts = updated
                                                     },
                                                     label = { Text("Monto asignado a $person") },
+                                                    placeholder = { Text("Ej. 230.00") },
                                                     leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null) },
                                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                                     singleLine = true,
