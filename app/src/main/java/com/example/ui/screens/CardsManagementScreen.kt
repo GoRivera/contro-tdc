@@ -87,6 +87,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1483,6 +1484,7 @@ fun CardsManagementScreen(
                         value = editName,
                         onValueChange = { editName = it },
                         label = { Text("Nombre de la Tarjeta") },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1493,6 +1495,7 @@ fun CardsManagementScreen(
                         onValueChange = { editCardholder = it },
                         label = { Text("Nombre del Titular") },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1503,6 +1506,7 @@ fun CardsManagementScreen(
                         onValueChange = { editBank = it },
                         label = { Text("Banco Emisor") },
                         leadingIcon = { Icon(Icons.Default.AccountBalance, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1862,6 +1866,7 @@ fun CardsManagementScreen(
                         label = { Text("Nombre del Titular") },
                         placeholder = { Text("Ej. Juan Pérez") },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("add_cardholder_input")
                     )
@@ -2005,6 +2010,7 @@ fun CardsManagementScreen(
                         onValueChange = { cardName = it },
                         label = { Text("Nombre de la Tarjeta") },
                         placeholder = { Text("Ej. Like U, Oro BBVA, Azul, Platinum") },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -2022,6 +2028,7 @@ fun CardsManagementScreen(
                         label = { Text("Banco en México (manual o sugerido)") },
                         leadingIcon = { Icon(Icons.Default.AccountBalance, contentDescription = null) },
                         placeholder = { Text("Ej. BBVA, Santander, Banamex...") },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )

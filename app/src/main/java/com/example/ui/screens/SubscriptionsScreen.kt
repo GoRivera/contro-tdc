@@ -79,6 +79,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -1124,12 +1125,14 @@ private fun AddSubscriptionDialog(
     var selectedCategory by remember { mutableStateOf("Streaming") }
     var selectedCardId by remember { mutableStateOf(cards.firstOrNull()?.id ?: 1L) }
     var billingDayText by remember { mutableStateOf("15") }
-    var totalAmountText by remember { mutableStateOf("299") }
+    // Corrección: antes venía precargado con "299" (un monto real, similar al de Netflix), lo que
+    // permitía registrar sin querer un cargo real si el usuario tocaba "Registrar" sin revisar.
+    var totalAmountText by remember { mutableStateOf("") }
     var periodicity by remember { mutableStateOf("MENSUAL") }
 
     val participantsList = remember {
         mutableStateListOf(
-            SubscriptionParticipantState(1L, "$defaultProfileName (Tú)", "299", isPersonal = true)
+            SubscriptionParticipantState(1L, "$defaultProfileName (Tú)", "", isPersonal = true)
         )
     }
 
@@ -1209,6 +1212,7 @@ private fun AddSubscriptionDialog(
                     onValueChange = { name = it },
                     label = { Text("Nombre del Servicio") },
                     placeholder = { Text("Ej. Netflix Familiar") },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("sub_name_input")
                 )
@@ -1221,8 +1225,8 @@ private fun AddSubscriptionDialog(
                         value = totalAmountText,
                         onValueChange = { onTotalAmountChange(it) },
                         label = { Text("Costo Mensual ($)") },
-                        placeholder = { Text("299") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        placeholder = { Text("Ej. 299") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1.2f).testTag("sub_cost_input")
                     )
 
@@ -1359,15 +1363,22 @@ private fun AddSubscriptionDialog(
                                         onValueChange = { p.name = it },
                                         placeholder = { Text("Nombre") },
                                         label = { Text("Nombre", fontSize = 10.sp) },
+                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                         singleLine = true,
                                         modifier = Modifier.weight(1.4f)
                                     )
+                                    // Corrección: el monto de "Personal" se recalculaba y sobrescribía sin
+                                    // aviso cada vez que se editaba cualquier otro participante o el total,
+                                    // descartando lo que el usuario hubiera escrito ahí. Como por diseño
+                                    // (Requisito 8) Personal siempre debe absorber el remanente, ahora ese
+                                    // campo se muestra de solo lectura en vez de editable-pero-inestable.
                                     OutlinedTextField(
                                         value = p.amountText,
                                         onValueChange = { onMemberAmountChange(p, it) },
                                         placeholder = { Text("0") },
-                                        label = { Text("Cuota ($)", fontSize = 10.sp) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        label = { Text(if (p.isPersonal) "Cuota ($) · automático" else "Cuota ($)", fontSize = 10.sp) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        readOnly = p.isPersonal,
                                         singleLine = true,
                                         modifier = Modifier.weight(1f)
                                     )
@@ -1445,7 +1456,11 @@ private fun AddSubscriptionDialog(
         confirmButton = {
             val totalNum = totalAmountText.toDoubleOrNull() ?: 0.0
             val dayNum = billingDayText.toIntOrNull() ?: 15
-            val canSubmit = name.isNotBlank() && totalNum > 0
+            // Corrección: la división de un gasto (QuickAddExpenseSheet) bloquea guardar si no cuadra,
+            // pero aquí solo era una advertencia visual; ahora también es obligatorio que cuadre.
+            val currentSum = participantsList.sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
+            val isBalanced = Math.abs(totalNum - currentSum) < 0.01
+            val canSubmit = name.isNotBlank() && totalNum > 0 && isBalanced
 
             Button(
                 onClick = {
@@ -1673,6 +1688,7 @@ private fun EditSubscriptionDialog(
                     value = editName,
                     onValueChange = { editName = it },
                     label = { Text("Nombre") },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1685,7 +1701,7 @@ private fun EditSubscriptionDialog(
                         value = editTotalAmount,
                         onValueChange = { onTotalAmountChange(it) },
                         label = { Text("Costo Mensual ($)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1.2f)
                     )
 
@@ -1821,6 +1837,7 @@ private fun EditSubscriptionDialog(
                                         onValueChange = { p.name = it },
                                         placeholder = { Text("Nombre") },
                                         label = { Text("Nombre", fontSize = 10.sp) },
+                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                         singleLine = true,
                                         modifier = Modifier.weight(1.4f)
                                     )
@@ -1828,8 +1845,9 @@ private fun EditSubscriptionDialog(
                                         value = p.amountText,
                                         onValueChange = { onMemberAmountChange(p, it) },
                                         placeholder = { Text("0") },
-                                        label = { Text("Cuota ($)", fontSize = 10.sp) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        label = { Text(if (p.isPersonal) "Cuota ($) · automático" else "Cuota ($)", fontSize = 10.sp) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        readOnly = p.isPersonal,
                                         singleLine = true,
                                         modifier = Modifier.weight(1f)
                                     )
@@ -1907,7 +1925,9 @@ private fun EditSubscriptionDialog(
         confirmButton = {
             val totalNum = editTotalAmount.toDoubleOrNull() ?: 0.0
             val dayNum = editBillingDay.toIntOrNull() ?: 15
-            val canSubmit = editName.isNotBlank() && totalNum > 0
+            val currentSum = editParticipants.sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
+            val isBalanced = Math.abs(totalNum - currentSum) < 0.01
+            val canSubmit = editName.isNotBlank() && totalNum > 0 && isBalanced
 
             Button(
                 onClick = {

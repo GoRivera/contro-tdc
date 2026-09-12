@@ -70,6 +70,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -902,6 +903,10 @@ fun EditMsiDialog(
     var totalMonthsText by remember { mutableStateOf(expense.msiTotalMonths.toString()) }
     var currentInstText by remember { mutableStateOf(expense.msiCurrentInstallment.toString()) }
     var notesText by remember { mutableStateOf(expense.notes) }
+    // Corrección: antes, editar "Monto total" o "Plazo" sobrescribía en silencio la "Mensualidad" aunque
+    // el usuario ya la hubiera escrito a mano. Ahora, en cuanto el usuario edita la Mensualidad
+    // directamente, se deja de recalcularla automáticamente.
+    var monthlyManuallyEdited by remember { mutableStateOf(false) }
 
     val totalAmount = CreditCardCalculator.parseLocalizedDouble(totalAmountText) ?: 0.0
     val monthlyPayment = CreditCardCalculator.parseLocalizedDouble(monthlyPaymentText) ?: 0.0
@@ -928,6 +933,7 @@ fun EditMsiDialog(
                         value = conceptText,
                         onValueChange = { conceptText = it },
                         label = { Text("Concepto de la compra") },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("edit_msi_concept")
                     )
@@ -981,10 +987,12 @@ fun EditMsiDialog(
                             value = totalAmountText,
                             onValueChange = {
                                 totalAmountText = it
-                                val tot = it.toDoubleOrNull() ?: 0.0
-                                val m = totalMonthsText.toIntOrNull() ?: 1
-                                if (tot > 0 && m > 0) {
-                                    monthlyPaymentText = String.format(Locale.US, "%.2f", tot / m)
+                                if (!monthlyManuallyEdited) {
+                                    val tot = it.toDoubleOrNull() ?: 0.0
+                                    val m = totalMonthsText.toIntOrNull() ?: 1
+                                    if (tot > 0 && m > 0) {
+                                        monthlyPaymentText = String.format(Locale.US, "%.2f", tot / m)
+                                    }
                                 }
                             },
                             label = { Text("Monto total ($)") },
@@ -995,7 +1003,10 @@ fun EditMsiDialog(
 
                         OutlinedTextField(
                             value = monthlyPaymentText,
-                            onValueChange = { monthlyPaymentText = it },
+                            onValueChange = {
+                                monthlyPaymentText = it
+                                monthlyManuallyEdited = true
+                            },
                             label = { Text("Mensualidad ($)") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine = true,
@@ -1013,10 +1024,12 @@ fun EditMsiDialog(
                             value = totalMonthsText,
                             onValueChange = {
                                 totalMonthsText = it
-                                val m = it.toIntOrNull() ?: 1
-                                val tot = totalAmountText.toDoubleOrNull() ?: 0.0
-                                if (tot > 0 && m > 0) {
-                                    monthlyPaymentText = String.format(Locale.US, "%.2f", tot / m)
+                                if (!monthlyManuallyEdited) {
+                                    val m = it.toIntOrNull() ?: 1
+                                    val tot = totalAmountText.toDoubleOrNull() ?: 0.0
+                                    if (tot > 0 && m > 0) {
+                                        monthlyPaymentText = String.format(Locale.US, "%.2f", tot / m)
+                                    }
                                 }
                             },
                             label = { Text("Plazo (meses)") },
@@ -1063,6 +1076,7 @@ fun EditMsiDialog(
                         value = beneficiaryText,
                         onValueChange = { beneficiaryText = it },
                         label = { Text("Beneficiario (ej. Personal, Familiar)") },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("edit_msi_beneficiary")
                     )
@@ -1073,6 +1087,7 @@ fun EditMsiDialog(
                         value = notesText,
                         onValueChange = { notesText = it },
                         label = { Text("Notas / Detalles (Opcional)") },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )

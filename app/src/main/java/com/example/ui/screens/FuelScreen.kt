@@ -68,6 +68,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1434,6 +1435,7 @@ fun AddFuelEntryDialog(
                                         onValueChange = { dividedWithText = it },
                                         label = { Text("Con quién (opcional)") },
                                         placeholder = { Text("Ej. Familiar / Pareja") },
+                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                                         singleLine = true,
                                         modifier = Modifier.weight(1f)
                                     )
@@ -1514,6 +1516,7 @@ fun AddFuelEntryDialog(
                         onValueChange = { notesText = it },
                         label = { Text("Notas / Ubicación (Opcional)") },
                         placeholder = { Text("Ej. Gasolinera Shell Periférico") },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
