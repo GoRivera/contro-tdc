@@ -1,0 +1,320 @@
+package com.example.data.sync
+
+import android.content.Context
+import android.util.Log
+import com.example.data.model.CreditCard
+import com.example.data.model.Expense
+import com.example.data.model.FuelEntry
+import com.example.data.model.Payment
+import com.example.data.model.Subscription
+import com.example.data.model.UserProfile
+import com.example.data.repository.CardRepository
+import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+
+/**
+ * Gestor central de sincronización en la nube mediante Cloud Firestore (Spark Plan 100% Gratuito).
+ * Mantiene la base de datos local (Room) como fuente primaria y sincroniza con Firestore bajo /users/{uid}/...
+ */
+class CloudSyncManager(
+    private val context: Context,
+    private val repository: CardRepository
+) {
+    private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
+    val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
+
+    private val _currentUser = MutableStateFlow<FirebaseAccountInfo?>(null)
+    val currentUser: StateFlow<FirebaseAccountInfo?> = _currentUser.asStateFlow()
+
+    val isFirebaseInitialized: Boolean
+        get() = try {
+            FirebaseApp.getApps(context).isNotEmpty()
+        } catch (e: Exception) {
+            false
+        }
+
+    init {
+        checkCurrentAuth()
+    }
+
+    fun checkCurrentAuth() {
+        if (!isFirebaseInitialized) {
+            _currentUser.value = null
+            _syncState.value = SyncState.FirebaseNotConfigured
+            return
+        }
+
+        try {
+            val auth = FirebaseAuth.getInstance()
+            val user = auth.currentUser
+            if (user != null) {
+                _currentUser.value = FirebaseAccountInfo(
+                    uid = user.uid,
+                    email = user.email ?: "",
+                    displayName = user.displayName ?: "Usuario",
+                    photoUrl = user.photoUrl?.toString(),
+                    isAnonymous = user.isAnonymous
+                )
+            } else {
+                _currentUser.value = null
+                _syncState.value = SyncState.Idle
+            }
+        } catch (e: Exception) {
+            Log.e("CloudSyncManager", "Error checking Firebase Auth state", e)
+            _currentUser.value = null
+            _syncState.value = SyncState.FirebaseNotConfigured
+        }
+    }
+
+    /**
+     * Sube todos los registros locales existentes a Firestore bajo la cuenta autenticada.
+     */
+    suspend fun uploadAllLocalDataToCloud(): Result<Unit> = withContext(Dispatchers.IO) {
+        if (!isFirebaseInitialized) {
+            _syncState.value = SyncState.FirebaseNotConfigured
+            return@withContext Result.failure(IllegalStateException("Firebase no está configurado aún."))
+        }
+
+        val auth = FirebaseAuth.getInstance()
+        val user = auth.currentUser
+        if (user == null) {
+            _syncState.value = SyncState.Error("No hay sesión activa para sincronizar.")
+            return@withContext Result.failure(IllegalStateException("Usuario no autenticado"))
+        }
+
+        _syncState.value = SyncState.Syncing
+
+        try {
+            val firestore = FirebaseFirestore.getInstance()
+            val userDocRef = firestore.collection("users").document(user.uid)
+
+            // 1. Obtener datos locales
+            val cards = repository.allCards.first()
+            val expenses = repository.allExpenses.first()
+            val payments = repository.allPayments.first()
+            val subscriptions = repository.allSubscriptions.first()
+            val fuelEntries = repository.allFuelEntries.first()
+
+            // 2. Subir tarjetas
+            val batch = firestore.batch()
+            for (card in cards) {
+                val doc = userDocRef.collection("cards").document(card.id.toString())
+                val map = hashMapOf(
+                    "id" to card.id,
+                    "name" to card.name,
+                    "bank" to card.bank,
+                    "cutoffDay" to card.cutoffDay,
+                    "paymentDueDay" to card.paymentDueDay,
+                    "creditLimit" to card.creditLimit,
+                    "primaryColorHex" to card.primaryColorHex,
+                    "secondaryColorHex" to card.secondaryColorHex,
+                    "last4Digits" to card.last4Digits,
+                    "network" to card.network,
+                    "isActive" to card.isActive,
+                    "isDepartmental" to card.isDepartmental,
+                    "graceDays" to card.graceDays,
+                    "cardholderName" to card.cardholderName
+                )
+                batch.set(doc, map, SetOptions.merge())
+            }
+
+            // Subir gastos
+            for (exp in expenses) {
+                val doc = userDocRef.collection("expenses").document(exp.id.toString())
+                val map = hashMapOf(
+                    "id" to exp.id,
+                    "cardId" to exp.cardId,
+                    "concept" to exp.concept,
+                    "amount" to exp.amount,
+                    "dateMillis" to exp.dateMillis,
+                    "beneficiary" to exp.beneficiary,
+                    "category" to exp.category,
+                    "isMsi" to exp.isMsi,
+                    "msiTotalMonths" to exp.msiTotalMonths,
+                    "msiCurrentInstallment" to exp.msiCurrentInstallment,
+                    "msiTotalPurchaseAmount" to exp.msiTotalPurchaseAmount,
+                    "notes" to exp.notes,
+                    "targetStatementMonth" to exp.targetStatementMonth,
+                    "isSubscription" to exp.isSubscription,
+                    "subscriptionId" to (exp.subscriptionId ?: 0L)
+                )
+                batch.set(doc, map, SetOptions.merge())
+            }
+
+            // Subir pagos
+            for (pay in payments) {
+                val doc = userDocRef.collection("payments").document(pay.id.toString())
+                val map = hashMapOf(
+                    "id" to pay.id,
+                    "cardId" to pay.cardId,
+                    "concept" to pay.concept,
+                    "amount" to pay.amount,
+                    "dateMillis" to pay.dateMillis,
+                    "sourcePayer" to pay.sourcePayer,
+                    "targetStatementMonth" to pay.targetStatementMonth,
+                    "notes" to pay.notes
+                )
+                batch.set(doc, map, SetOptions.merge())
+            }
+
+            // Subir suscripciones
+            for (sub in subscriptions) {
+                val doc = userDocRef.collection("subscriptions").document(sub.id.toString())
+                val map = hashMapOf(
+                    "id" to sub.id,
+                    "name" to sub.name,
+                    "cardId" to sub.cardId,
+                    "billingDayOfMonth" to sub.billingDayOfMonth,
+                    "totalMonthlyAmount" to sub.totalMonthlyAmount,
+                    "category" to sub.category,
+                    "startMonth" to sub.startMonth,
+                    "isActive" to sub.isActive,
+                    "notes" to sub.notes,
+                    "participantsSummary" to sub.participantsSummary
+                )
+                batch.set(doc, map, SetOptions.merge())
+            }
+
+            // Subir gasolina
+            for (fuel in fuelEntries) {
+                val doc = userDocRef.collection("fuel").document(fuel.id.toString())
+                val map = hashMapOf(
+                    "id" to fuel.id,
+                    "cardId" to fuel.cardId,
+                    "expenseId" to (fuel.expenseId ?: 0L),
+                    "kmDriven" to fuel.kmDriven,
+                    "fuelType" to fuel.fuelType,
+                    "pricePerLiter" to fuel.pricePerLiter,
+                    "litersLoaded" to fuel.litersLoaded,
+                    "totalCost" to fuel.totalCost,
+                    "efficiencyKmPerL" to fuel.efficiencyKmPerL,
+                    "isDivided" to fuel.isDivided,
+                    "personalShare" to fuel.personalShare,
+                    "dividedWith" to fuel.dividedWith,
+                    "dateMillis" to fuel.dateMillis,
+                    "notes" to fuel.notes
+                )
+                batch.set(doc, map, SetOptions.merge())
+            }
+
+            // Guardar metadata de sincronización
+            batch.set(
+                userDocRef,
+                hashMapOf(
+                    "lastSyncedAt" to System.currentTimeMillis(),
+                    "email" to (user.email ?: ""),
+                    "displayName" to (user.displayName ?: "")
+                ),
+                SetOptions.merge()
+            )
+
+            batch.commit().await()
+            _syncState.value = SyncState.Success("Sincronización a la nube completada con éxito.")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("CloudSyncManager", "Error al sincronizar con Firestore", e)
+            _syncState.value = SyncState.Error("Fallo en sincronización: ${e.localizedMessage ?: "Error desconocido"}")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Descarga y restaura los datos de la nube hacia la base de datos local en un nuevo dispositivo.
+     */
+    suspend fun restoreFromCloudToLocal(): Result<Unit> = withContext(Dispatchers.IO) {
+        if (!isFirebaseInitialized) {
+            _syncState.value = SyncState.FirebaseNotConfigured
+            return@withContext Result.failure(IllegalStateException("Firebase no está configurado."))
+        }
+
+        val auth = FirebaseAuth.getInstance()
+        val user = auth.currentUser
+        if (user == null) {
+            _syncState.value = SyncState.Error("No hay usuario autenticado.")
+            return@withContext Result.failure(IllegalStateException("Usuario no autenticado"))
+        }
+
+        _syncState.value = SyncState.Syncing
+
+        try {
+            val firestore = FirebaseFirestore.getInstance()
+            val userDocRef = firestore.collection("users").document(user.uid)
+
+            // Descargar tarjetas
+            val cardsSnap = userDocRef.collection("cards").get().await()
+            for (doc in cardsSnap.documents) {
+                val data = doc.data ?: continue
+                val card = CreditCard(
+                    id = (data["id"] as? Number)?.toLong() ?: 0L,
+                    name = data["name"] as? String ?: "Tarjeta",
+                    bank = data["bank"] as? String ?: "Banco",
+                    cutoffDay = (data["cutoffDay"] as? Number)?.toInt() ?: 1,
+                    paymentDueDay = (data["paymentDueDay"] as? Number)?.toInt() ?: 20,
+                    creditLimit = (data["creditLimit"] as? Number)?.toDouble() ?: 0.0,
+                    primaryColorHex = (data["primaryColorHex"] as? Number)?.toLong() ?: 0xFF004481,
+                    secondaryColorHex = (data["secondaryColorHex"] as? Number)?.toLong() ?: 0xFF001E36,
+                    last4Digits = data["last4Digits"] as? String ?: "••••",
+                    network = data["network"] as? String ?: "Mastercard",
+                    isActive = data["isActive"] as? Boolean ?: true,
+                    isDepartmental = data["isDepartmental"] as? Boolean ?: false,
+                    graceDays = (data["graceDays"] as? Number)?.toInt() ?: 20,
+                    cardholderName = data["cardholderName"] as? String ?: "Titular"
+                )
+                repository.insertCard(card)
+            }
+
+            // Descargar gastos
+            val expensesSnap = userDocRef.collection("expenses").get().await()
+            for (doc in expensesSnap.documents) {
+                val data = doc.data ?: continue
+                val subIdVal = (data["subscriptionId"] as? Number)?.toLong()
+                val expense = Expense(
+                    id = (data["id"] as? Number)?.toLong() ?: 0L,
+                    cardId = (data["cardId"] as? Number)?.toLong() ?: 1L,
+                    concept = data["concept"] as? String ?: "Gasto",
+                    amount = (data["amount"] as? Number)?.toDouble() ?: 0.0,
+                    dateMillis = (data["dateMillis"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+                    beneficiary = data["beneficiary"] as? String ?: "Personal",
+                    category = data["category"] as? String ?: "General",
+                    isMsi = data["isMsi"] as? Boolean ?: false,
+                    msiTotalMonths = (data["msiTotalMonths"] as? Number)?.toInt() ?: 1,
+                    msiCurrentInstallment = (data["msiCurrentInstallment"] as? Number)?.toInt() ?: 1,
+                    msiTotalPurchaseAmount = (data["msiTotalPurchaseAmount"] as? Number)?.toDouble() ?: 0.0,
+                    notes = data["notes"] as? String ?: "",
+                    targetStatementMonth = data["targetStatementMonth"] as? String ?: "",
+                    isSubscription = data["isSubscription"] as? Boolean ?: false,
+                    subscriptionId = if (subIdVal != null && subIdVal > 0) subIdVal else null
+                )
+                repository.insertExpense(expense)
+            }
+
+            _syncState.value = SyncState.Success("Datos restaurados exitosamente desde la nube.")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("CloudSyncManager", "Error al restaurar desde Firestore", e)
+            _syncState.value = SyncState.Error("Fallo al restaurar: ${e.localizedMessage}")
+            Result.failure(e)
+        }
+    }
+
+    fun signOut() {
+        try {
+            if (isFirebaseInitialized) {
+                FirebaseAuth.getInstance().signOut()
+            }
+            _currentUser.value = null
+            _syncState.value = SyncState.Idle
+        } catch (e: Exception) {
+            Log.e("CloudSyncManager", "Error signing out", e)
+        }
+    }
+}

@@ -1,0 +1,54 @@
+package com.example.data.dao
+
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Update
+import com.example.data.model.Subscription
+import com.example.data.model.SubscriptionPaymentTracking
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface SubscriptionDao {
+    @Query("SELECT * FROM subscriptions ORDER BY billingDayOfMonth ASC")
+    fun getAllSubscriptions(): Flow<List<Subscription>>
+
+    @Query("SELECT * FROM subscriptions WHERE isActive = 1 ORDER BY billingDayOfMonth ASC")
+    fun getActiveSubscriptions(): Flow<List<Subscription>>
+
+    @Query("SELECT * FROM subscriptions WHERE id = :id")
+    suspend fun getSubscriptionById(id: Long): Subscription?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSubscription(subscription: Subscription): Long
+
+    @Update
+    suspend fun updateSubscription(subscription: Subscription)
+
+    @Delete
+    suspend fun deleteSubscription(subscription: Subscription)
+
+    @Query("DELETE FROM subscriptions WHERE id = :id")
+    suspend fun deleteSubscriptionById(id: Long)
+
+    // Tracking queries
+    @Query("SELECT * FROM subscription_payment_trackings WHERE yearMonth = :yearMonth")
+    fun getTrackingsForMonth(yearMonth: String): Flow<List<SubscriptionPaymentTracking>>
+
+    @Query("SELECT * FROM subscription_payment_trackings WHERE subscriptionId = :subId")
+    fun getTrackingsForSubscription(subId: Long): Flow<List<SubscriptionPaymentTracking>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTrackings(trackings: List<SubscriptionPaymentTracking>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTracking(tracking: SubscriptionPaymentTracking): Long
+
+    @Update
+    suspend fun updateTracking(tracking: SubscriptionPaymentTracking)
+
+    @Query("DELETE FROM subscription_payment_trackings WHERE subscriptionId = :subId")
+    suspend fun deleteTrackingsForSubscription(subId: Long)
+}

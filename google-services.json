@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "233930565744",
+    "project_id": "control-tdc",
+    "storage_bucket": "control-tdc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:233930565744:android:e37e422b249d8583abacb5",
+        "android_client_info": {
+          "package_name": "com.aistudio.creditcards.qwvpkz"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "233930565744-tho76orejd348k6mjg8b233s2g53t0e8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.creditcards.qwvpkz",
+            "certificate_hash": "cabd351d5efdd96155318d97d319b8541b82eebe"
+          }
+        },
+        {
+          "client_id": "233930565744-j4f4e3nipr30e4i29m1pcelf6vim4bvl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvT3qhbpZEXnHOcwMMQV0G2hY_ZJub30U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "233930565744-j4f4e3nipr30e4i29m1pcelf6vim4bvl.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
