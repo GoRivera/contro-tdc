@@ -6,6 +6,7 @@ import com.example.data.model.CreditCard
 import com.example.data.model.Expense
 import com.example.data.model.FuelEntry
 import com.example.data.model.Payment
+import com.example.data.model.ServiceEntry
 import com.example.data.model.Subscription
 import com.example.data.model.SubscriptionPaymentTracking
 import com.example.data.repository.CardRepository
@@ -128,6 +129,13 @@ class CloudSyncManager(
         return updated
     }
 
+    private suspend fun ensureServiceEntryFirestoreId(entry: ServiceEntry): ServiceEntry {
+        if (entry.firestoreId.isNotBlank()) return entry
+        val updated = entry.copy(firestoreId = UUID.randomUUID().toString())
+        repository.updateServiceEntry(updated)
+        return updated
+    }
+
     /**
      * Sube todos los registros locales existentes a Firestore bajo la cuenta autenticada.
      */
@@ -163,6 +171,7 @@ class CloudSyncManager(
             val payments = repository.allPayments.first().map { ensurePaymentFirestoreId(it) }
             val trackings = repository.allTrackings.first().map { ensureTrackingFirestoreId(it) }
             val fuelEntries = repository.allFuelEntries.first().map { ensureFuelEntryFirestoreId(it) }
+            val serviceEntries = repository.allServiceEntries.first().map { ensureServiceEntryFirestoreId(it) }
 
             val batch = firestore.batch()
 
@@ -283,6 +292,20 @@ class CloudSyncManager(
                 batch.set(doc, map, SetOptions.merge())
             }
 
+            // Subir servicios (agua, luz, gas) — independiente de tarjetas/gastos
+            for (service in serviceEntries) {
+                val doc = userDocRef.collection("services").document(service.firestoreId)
+                val map = hashMapOf(
+                    "firestoreId" to service.firestoreId,
+                    "serviceType" to service.serviceType,
+                    "dateMillis" to service.dateMillis,
+                    "amount" to service.amount,
+                    "consumption" to service.consumption,
+                    "notes" to service.notes
+                )
+                batch.set(doc, map, SetOptions.merge())
+            }
+
             // Guardar metadata de sincronización
             batch.set(
                 userDocRef,
@@ -306,8 +329,8 @@ class CloudSyncManager(
 
     /**
      * Descarga y restaura los datos de la nube hacia la base de datos local, incluyendo tarjetas, gastos,
-     * pagos/abonos, suscripciones, su seguimiento mensual de pagos y cargas de gasolina (las seis
-     * colecciones que se suben en [uploadAllLocalDataToCloud]). El emparejamiento con registros locales
+     * pagos/abonos, suscripciones, su seguimiento mensual de pagos, cargas de gasolina y servicios
+     * (agua/luz/gas) — las siete colecciones que se suben en [uploadAllLocalDataToCloud]. El emparejamiento con registros locales
      * existentes se hace por `firestoreId`, así que restaurar es seguro incluso en un dispositivo que ya
      * tenga datos propios: nunca sobrescribe un registro local que no corresponda al mismo `firestoreId`.
      */
@@ -507,6 +530,24 @@ class CloudSyncManager(
                     firestoreId = fid
                 )
                 if (existing != null) repository.updateFuelEntry(entry) else repository.insertFuelEntry(entry)
+            }
+
+            // 7. Restaurar servicios (agua, luz, gas)
+            val servicesSnap = userDocRef.collection("services").get().await()
+            for (doc in servicesSnap.documents) {
+                val data = doc.data ?: continue
+                val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
+                val existing = repository.getServiceEntryByFirestoreId(fid)
+                val entry = ServiceEntry(
+                    id = existing?.id ?: 0L,
+                    serviceType = data["serviceType"] as? String ?: com.example.data.model.ServiceType.AGUA,
+                    dateMillis = (data["dateMillis"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+                    amount = (data["amount"] as? Number)?.toDouble() ?: 0.0,
+                    consumption = (data["consumption"] as? Number)?.toDouble() ?: 0.0,
+                    notes = data["notes"] as? String ?: "",
+                    firestoreId = fid
+                )
+                if (existing != null) repository.updateServiceEntry(entry) else repository.insertServiceEntry(entry)
             }
 
             _syncState.value = SyncState.Success("Datos restaurados exitosamente desde la nube.")

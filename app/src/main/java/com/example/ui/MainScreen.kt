@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.ExitToApp
@@ -93,6 +94,7 @@ import com.example.ui.screens.CardsManagementScreen
 import com.example.ui.screens.FuelScreen
 import com.example.ui.screens.MsiTrackerScreen
 import com.example.ui.screens.RecommendationScreen
+import com.example.ui.screens.ServicesScreen
 import com.example.ui.screens.StatementsScreen
 import com.example.ui.screens.SubscriptionsScreen
 import com.example.ui.theme.NaturalBackgroundLight
@@ -150,6 +152,7 @@ fun MainScreen(viewModel: CreditCardViewModel) {
     val subscriptionTrackings by viewModel.subscriptionTrackings.collectAsStateWithLifecycle()
     val trackingYearMonth by viewModel.trackingYearMonth.collectAsStateWithLifecycle()
     val fuelEntries by viewModel.allFuelEntries.collectAsStateWithLifecycle()
+    val serviceEntries by viewModel.allServiceEntries.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val syncState by viewModel.syncState.collectAsStateWithLifecycle()
     val firebaseUser by viewModel.currentFirebaseUser.collectAsStateWithLifecycle()
@@ -196,6 +199,7 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                                 4 -> "PERIODOS DE FACTURACIÓN"
                                 5 -> "BILLETERA DE TARJETAS"
                                 6 -> "PERFIL DE TITULAR"
+                                7 -> "AGUA, LUZ Y GAS"
                                 else -> "CONTROL TDC"
                             },
                             fontSize = 11.sp,
@@ -212,6 +216,7 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                                 4 -> "Estados de Cuenta"
                                 5 -> "Mis Tarjetas"
                                 6 -> "Mi Cuenta"
+                                7 -> "Servicios"
                                 else -> "Control TDC"
                             },
                             fontSize = 22.sp,
@@ -247,8 +252,26 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                             }
                         }
 
-                        // Corrección: se quitó el botón de "Notificaciones" que no tenía ninguna acción
-                        // asociada (parecía tocable pero no abría nada) — reduce ruido visual del header.
+                        // Botón de Servicios (agua, luz, gas) — reemplaza el antiguo botón de
+                        // "Notificaciones" que no tenía ninguna acción asociada.
+                        Surface(
+                            shape = CircleShape,
+                            color = if (selectedTab == 7) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable { selectedTab = 7 }
+                                .testTag("btn_top_services")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = "Servicios: agua, luz y gas",
+                                    tint = if (selectedTab == 7) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
 
                         // User avatar / Cuenta
                         Surface(
@@ -605,6 +628,29 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                         showGoogleSignInDialog = true
                     },
                     onClose = { selectedTab = 0 }
+                )
+
+                7 -> ServicesScreen(
+                    entries = serviceEntries,
+                    onAddEntry = { serviceType, dateMillis, amount, consumption, notes ->
+                        viewModel.addServiceEntry(
+                            serviceType = serviceType,
+                            dateMillis = dateMillis,
+                            amount = amount,
+                            consumption = consumption,
+                            notes = notes
+                        )
+                    },
+                    onUpdateEntry = { entry, dateMillis, amount, consumption, notes ->
+                        viewModel.updateServiceEntry(
+                            entry = entry,
+                            newDateMillis = dateMillis,
+                            newAmount = amount,
+                            newConsumption = consumption,
+                            newNotes = notes
+                        )
+                    },
+                    onDeleteEntry = { viewModel.deleteServiceEntry(it) }
                 )
             }
             }

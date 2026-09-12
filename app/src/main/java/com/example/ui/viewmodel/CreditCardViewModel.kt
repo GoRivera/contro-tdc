@@ -8,6 +8,7 @@ import com.example.data.model.CreditCard
 import com.example.data.model.Expense
 import com.example.data.model.FuelEntry
 import com.example.data.model.Payment
+import com.example.data.model.ServiceEntry
 import com.example.data.model.Subscription
 import com.example.data.model.SubscriptionPaymentTracking
 import com.example.data.model.UserProfile
@@ -45,7 +46,8 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
         database.expenseDao(),
         database.paymentDao(),
         database.subscriptionDao(),
-        database.fuelEntryDao()
+        database.fuelEntryDao(),
+        database.serviceEntryDao()
     )
 
     val cloudSyncManager = CloudSyncManager(application, repository)
@@ -164,6 +166,10 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
 
     // Fuel entries
     val allFuelEntries: StateFlow<List<FuelEntry>> = repository.allFuelEntries
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Servicios (agua, luz, gas) — módulo independiente de tarjetas y gastos
+    val allServiceEntries: StateFlow<List<ServiceEntry>> = repository.allServiceEntries
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Subscriptions flows
@@ -991,6 +997,54 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 notes = newNotes
             )
             repository.updateExpense(updated)
+        }
+    }
+
+    // --- Módulo de Servicios (agua, luz, gas) ---
+    // Totalmente aislado de tarjetas/gastos: no crea Expense, no toca ninguna tarjeta ni estado de cuenta.
+
+    fun addServiceEntry(
+        serviceType: String,
+        dateMillis: Long,
+        amount: Double,
+        consumption: Double = 0.0,
+        notes: String = ""
+    ) {
+        viewModelScope.launch {
+            val entry = ServiceEntry(
+                serviceType = serviceType,
+                dateMillis = dateMillis,
+                amount = amount,
+                consumption = consumption,
+                notes = notes.trim(),
+                firestoreId = java.util.UUID.randomUUID().toString()
+            )
+            repository.insertServiceEntry(entry)
+        }
+    }
+
+    fun updateServiceEntry(
+        entry: ServiceEntry,
+        newDateMillis: Long,
+        newAmount: Double,
+        newConsumption: Double,
+        newNotes: String
+    ) {
+        viewModelScope.launch {
+            repository.updateServiceEntry(
+                entry.copy(
+                    dateMillis = newDateMillis,
+                    amount = newAmount,
+                    consumption = newConsumption,
+                    notes = newNotes.trim()
+                )
+            )
+        }
+    }
+
+    fun deleteServiceEntry(entry: ServiceEntry) {
+        viewModelScope.launch {
+            repository.deleteServiceEntry(entry)
         }
     }
 

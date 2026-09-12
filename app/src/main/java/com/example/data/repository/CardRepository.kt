@@ -4,11 +4,13 @@ import com.example.data.dao.CreditCardDao
 import com.example.data.dao.ExpenseDao
 import com.example.data.dao.FuelEntryDao
 import com.example.data.dao.PaymentDao
+import com.example.data.dao.ServiceEntryDao
 import com.example.data.dao.SubscriptionDao
 import com.example.data.model.CreditCard
 import com.example.data.model.Expense
 import com.example.data.model.FuelEntry
 import com.example.data.model.Payment
+import com.example.data.model.ServiceEntry
 import com.example.data.model.Subscription
 import com.example.data.model.SubscriptionPaymentTracking
 import kotlinx.coroutines.flow.Flow
@@ -18,7 +20,8 @@ class CardRepository(
     private val expenseDao: ExpenseDao,
     private val paymentDao: PaymentDao,
     private val subscriptionDao: SubscriptionDao,
-    private val fuelEntryDao: FuelEntryDao
+    private val fuelEntryDao: FuelEntryDao,
+    private val serviceEntryDao: ServiceEntryDao
 ) {
     val allCards: Flow<List<CreditCard>> = cardDao.getAllCards()
     val activeCards: Flow<List<CreditCard>> = cardDao.getActiveCards()
@@ -29,6 +32,7 @@ class CardRepository(
     val activeSubscriptions: Flow<List<Subscription>> = subscriptionDao.getActiveSubscriptions()
     val allFuelEntries: Flow<List<FuelEntry>> = fuelEntryDao.getAllFuelEntries()
     val allTrackings: Flow<List<SubscriptionPaymentTracking>> = subscriptionDao.getAllTrackings()
+    val allServiceEntries: Flow<List<ServiceEntry>> = serviceEntryDao.getAllServiceEntries()
 
     fun getFuelEntriesSince(sinceMillis: Long): Flow<List<FuelEntry>> =
         fuelEntryDao.getFuelEntriesSince(sinceMillis)
@@ -92,4 +96,10 @@ class CardRepository(
 
     suspend fun getFuelEntryByFirestoreId(firestoreId: String): FuelEntry? =
         fuelEntryDao.getFuelEntryByFirestoreId(firestoreId)
+
+    suspend fun insertServiceEntry(entry: ServiceEntry): Long = serviceEntryDao.insertServiceEntry(entry)
+    suspend fun updateServiceEntry(entry: ServiceEntry) = serviceEntryDao.updateServiceEntry(entry)
+    suspend fun deleteServiceEntry(entry: ServiceEntry) = serviceEntryDao.deleteServiceEntry(entry)
+    suspend fun getServiceEntryByFirestoreId(firestoreId: String): ServiceEntry? =
+        serviceEntryDao.getServiceEntryByFirestoreId(firestoreId)
 }

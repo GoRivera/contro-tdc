@@ -34,11 +34,10 @@ jobs:
       - name: Generar local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
-      - name: Generar keystore de depuración
-        run: |
-          keytool -genkeypair -v -keystore debug.keystore -storepass android \
-            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
-            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+      # Nota: debug.keystore va versionado en el repo a propósito (ver .gitignore).
+      # Antes este paso generaba un keystore NUEVO en cada corrida, con una huella
+      # SHA-1 distinta cada vez, lo que rompía el inicio de sesión con Google (la
+      # huella del APK ya no coincidía con la registrada en Firebase/Google Cloud).
 
       - name: Compilar APK de depuración
         run: gradle assembleDebug --stacktrace

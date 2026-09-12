@@ -9,11 +9,13 @@ import com.example.data.dao.CreditCardDao
 import com.example.data.dao.ExpenseDao
 import com.example.data.dao.FuelEntryDao
 import com.example.data.dao.PaymentDao
+import com.example.data.dao.ServiceEntryDao
 import com.example.data.dao.SubscriptionDao
 import com.example.data.model.CreditCard
 import com.example.data.model.Expense
 import com.example.data.model.FuelEntry
 import com.example.data.model.Payment
+import com.example.data.model.ServiceEntry
 import com.example.data.model.Subscription
 import com.example.data.model.SubscriptionPaymentTracking
 import androidx.room.migration.Migration
@@ -22,8 +24,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [CreditCard::class, Expense::class, Payment::class, Subscription::class, SubscriptionPaymentTracking::class, FuelEntry::class],
-    version = 6,
+    entities = [CreditCard::class, Expense::class, Payment::class, Subscription::class, SubscriptionPaymentTracking::class, FuelEntry::class, ServiceEntry::class],
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,6 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun paymentDao(): PaymentDao
     abstract fun subscriptionDao(): SubscriptionDao
     abstract fun fuelEntryDao(): FuelEntryDao
+    abstract fun serviceEntryDao(): ServiceEntryDao
 
     companion object {
         @Volatile
@@ -62,6 +65,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Agrega la tabla de "Servicios" (agua, luz, gas): un módulo de control de consumos
+         * totalmente independiente de las tarjetas de crédito y sus gastos.
+         */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `service_entries` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`serviceType` TEXT NOT NULL, " +
+                        "`dateMillis` INTEGER NOT NULL, " +
+                        "`amount` REAL NOT NULL, " +
+                        "`consumption` REAL NOT NULL DEFAULT 0.0, " +
+                        "`notes` TEXT NOT NULL DEFAULT '', " +
+                        "`firestoreId` TEXT NOT NULL DEFAULT '')"
+                )
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -69,7 +91,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "credit_cards_manager.db"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .fallbackToDestructiveMigration()
                     .addCallback(AppDatabaseCallback(scope))
                     .build()

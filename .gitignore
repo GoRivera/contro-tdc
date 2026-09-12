@@ -15,4 +15,5 @@
 .cxx
 local.properties
 .env
-debug.keystore
+# debug.keystore SÍ se versiona a propósito (ver README): necesita una huella SHA-1 estable
+# para que el inicio de sesión con Google funcione igual en cualquier máquina o en CI.
