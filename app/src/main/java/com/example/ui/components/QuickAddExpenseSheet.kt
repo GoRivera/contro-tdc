@@ -22,6 +22,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachMoney
@@ -205,6 +207,11 @@ fun QuickAddExpenseSheet(
     // Porcentajes y montos por persona: mapa de Persona -> Valor
     var customPercentages by remember { mutableStateOf(mapOf<String, Float>()) }
     var customFixedAmounts by remember { mutableStateOf(mapOf<String, String>()) }
+
+    // Corrección del bug de "cursor que salta": mientras el usuario teclea un porcentaje, se conserva
+    // el texto exacto que escribió (incluso vacío momentáneamente) en vez de mostrar siempre un valor
+    // recalculado desde customPercentages, que se reescribía en cada tecla y reposicionaba el cursor.
+    var customPercentageTexts by remember { mutableStateOf(mapOf<String, String>()) }
 
     val msiOptions = listOf(3, 6, 9, 12, 15, 18, 24)
     val selectedCard = cards.firstOrNull { it.id == selectedCardId } ?: cards.firstOrNull()
@@ -664,6 +671,7 @@ fun QuickAddExpenseSheet(
                     leadingIcon = {
                         Icon(imageVector = Icons.Default.ShoppingCart, contentDescription = null)
                     },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -989,21 +997,24 @@ fun QuickAddExpenseSheet(
                                             }
 
                                             OutlinedTextField(
+                                                // Corrección: antes se reescribía el texto con el valor ya acotado
+                                                // (coerceIn) en cada tecla, lo que podía "recortar" silenciosamente
+                                                // lo que el usuario acababa de escribir. Ahora se conserva el texto
+                                                // tal cual se tecleó; el acotado a [1, msiTotalMonths] ya lo hace
+                                                // "effectiveCurrentInstallment" solo para los cálculos.
                                                 value = msiCurrentInstallmentText,
                                                 onValueChange = { input ->
-                                                    val digitsOnly = input.filter { it.isDigit() }
-                                                    if (digitsOnly.isBlank()) {
-                                                        msiCurrentInstallmentText = ""
-                                                    } else {
-                                                        val num = digitsOnly.toIntOrNull()
-                                                        if (num != null) {
-                                                            msiCurrentInstallmentText = num.coerceIn(1, msiTotalMonths).toString()
-                                                        }
-                                                    }
+                                                    msiCurrentInstallmentText = input.filter { it.isDigit() }.take(3)
                                                 },
                                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                                 singleLine = true,
-                                                modifier = Modifier.width(72.dp),
+                                                modifier = Modifier
+                                                    .width(72.dp)
+                                                    .onFocusChanged { focusState ->
+                                                        if (!focusState.isFocused) {
+                                                            msiCurrentInstallmentText = effectiveCurrentInstallment.toString()
+                                                        }
+                                                    },
                                                 textStyle = androidx.compose.ui.text.TextStyle(
                                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                                     fontWeight = FontWeight.Bold,
@@ -1411,6 +1422,7 @@ fun QuickAddExpenseSheet(
                                                     Slider(
                                                         value = currentPct,
                                                         onValueChange = { newPct ->
+                                                            customPercentageTexts = customPercentageTexts - person
                                                             updatePersonPercentage(person, newPct)
                                                         },
                                                         valueRange = 0f..100f,
@@ -1419,12 +1431,13 @@ fun QuickAddExpenseSheet(
                                                     )
                                                     Spacer(modifier = Modifier.width(8.dp))
                                                     OutlinedTextField(
-                                                        value = currentPct.toInt().toString(),
+                                                        // Mientras el usuario teclea, se muestra exactamente lo que escribió
+                                                        // (incluso vacío) en vez de un valor recalculado en cada tecla.
+                                                        value = customPercentageTexts[person] ?: currentPct.toInt().toString(),
                                                         onValueChange = { input ->
-                                                            val digits = input.filter { it.isDigit() }
-                                                            if (digits.isEmpty()) {
-                                                                updatePersonPercentage(person, 0f)
-                                                            } else {
+                                                            val digits = input.filter { it.isDigit() }.take(3)
+                                                            customPercentageTexts = customPercentageTexts + (person to digits)
+                                                            if (digits.isNotEmpty()) {
                                                                 val num = digits.toIntOrNull()?.coerceIn(0, 100) ?: 0
                                                                 updatePersonPercentage(person, num.toFloat())
                                                             }
@@ -1432,7 +1445,15 @@ fun QuickAddExpenseSheet(
                                                         suffix = { Text("%", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
                                                         singleLine = true,
                                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                                        modifier = Modifier.width(80.dp),
+                                                        modifier = Modifier
+                                                            .width(80.dp)
+                                                            .onFocusChanged { focusState ->
+                                                                // Al perder el foco, si quedó vacío o inválido, se vuelve a
+                                                                // mostrar el valor real en vez de dejar el campo en blanco.
+                                                                if (!focusState.isFocused) {
+                                                                    customPercentageTexts = customPercentageTexts - person
+                                                                }
+                                                            },
                                                         textStyle = MaterialTheme.typography.bodyMedium.copy(
                                                             fontWeight = FontWeight.Bold,
                                                             textAlign = androidx.compose.ui.text.style.TextAlign.End
@@ -1462,6 +1483,7 @@ fun QuickAddExpenseSheet(
                                                             shape = RoundedCornerShape(12.dp),
                                                             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                                                             modifier = Modifier.clickable {
+                                                                customPercentageTexts = customPercentageTexts - person
                                                                 updatePersonPercentage(person, preset.toFloat())
                                                             }
                                                         ) {

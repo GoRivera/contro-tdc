@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,6 +77,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.example.ui.util.AppHaptics
@@ -103,15 +105,34 @@ fun AccountScreen(
     onLaunchGoogleSignIn: () -> Unit = {},
     onClose: () -> Unit
 ) {
-    var fullName by remember(userProfile) { mutableStateOf(userProfile.fullName) }
-    var email by remember(userProfile) { mutableStateOf(userProfile.email) }
-    var shortName by remember(userProfile) { mutableStateOf(userProfile.shortName) }
+    // Corrección del bug de "se pierde lo que estabas escribiendo": antes, remember(userProfile) volvía
+    // a inicializar estos campos cada vez que userProfile cambiaba (p. ej. tras un inicio de sesión con
+    // Google o una restauración desde la nube), aunque el usuario ya estuviera escribiendo algo distinto
+    // en el formulario. Ahora solo se sincroniza un campo desde afuera si el usuario no lo había tocado.
+    var lastSyncedProfile by remember { mutableStateOf(userProfile) }
+    var fullName by remember { mutableStateOf(userProfile.fullName) }
+    var email by remember { mutableStateOf(userProfile.email) }
+    var shortName by remember { mutableStateOf(userProfile.shortName) }
     var showSavedFeedback by remember { mutableStateOf(false) }
+
+    LaunchedEffect(userProfile) {
+        if (userProfile != lastSyncedProfile) {
+            if (fullName == lastSyncedProfile.fullName) fullName = userProfile.fullName
+            if (email == lastSyncedProfile.email) email = userProfile.email
+            if (shortName == lastSyncedProfile.shortName) shortName = userProfile.shortName
+            lastSyncedProfile = userProfile
+        }
+    }
 
     var showPinDialog by remember { mutableStateOf(false) }
     var newPinInput by remember { mutableStateOf("") }
     var confirmPinInput by remember { mutableStateOf("") }
     var pinDialogError by remember { mutableStateOf<String?>(null) }
+
+    // Corrección: "Restaurar" y "Cerrar Sesión de la Nube" no pedían confirmación pese a poder
+    // sobrescribir/perder datos, a diferencia de "Eliminar tarjeta" que sí confirma.
+    var showRestoreConfirmDialog by remember { mutableStateOf(false) }
+    var showSignOutConfirmDialog by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
     LazyColumn(
@@ -121,6 +142,31 @@ fun AccountScreen(
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
+        // Encabezado con botón de regreso explícito (antes "onClose" no se usaba en ningún botón visible)
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                androidx.compose.material3.IconButton(
+                    onClick = onClose,
+                    modifier = Modifier.testTag("btn_account_back")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Volver"
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Mi Cuenta",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
         // Tarjeta de Identidad / Avatar
         item {
             Card(
@@ -215,6 +261,7 @@ fun AccountScreen(
                         label = { Text("Nombre Completo del Titular") },
                         placeholder = { Text("Ej. Juan Pérez") },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -228,6 +275,7 @@ fun AccountScreen(
                         placeholder = { Text("Ej. Juan") },
                         supportingText = { Text("Se utilizará para etiquetar tus cuotas en suscripciones y gastos.") },
                         leadingIcon = { Icon(Icons.Default.Badge, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -240,6 +288,7 @@ fun AccountScreen(
                         label = { Text("Correo Electrónico") },
                         placeholder = { Text("Ej. usuario@correo.com") },
                         leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -537,7 +586,7 @@ fun AccountScreen(
                             }
 
                             OutlinedButton(
-                                onClick = onRestoreFromCloud,
+                                onClick = { showRestoreConfirmDialog = true },
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
@@ -548,7 +597,7 @@ fun AccountScreen(
                         }
 
                         OutlinedButton(
-                            onClick = onSignOutCloud,
+                            onClick = { showSignOutConfirmDialog = true },
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
@@ -761,6 +810,53 @@ fun AccountScreen(
         item {
             Spacer(modifier = Modifier.height(30.dp))
         }
+    }
+
+    // Confirmación antes de restaurar desde la nube (puede sobrescribir datos locales no sincronizados)
+    if (showRestoreConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showRestoreConfirmDialog = false },
+            icon = { Icon(Icons.Default.CloudDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("¿Restaurar datos desde la nube?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Esto traerá tarjetas, gastos, abonos, suscripciones y cargas de gasolina guardados en tu cuenta. Los registros que ya tengas en este dispositivo se conservan y solo se actualizan los que coincidan con la nube.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRestoreConfirmDialog = false
+                        onRestoreFromCloud()
+                    }
+                ) { Text("Restaurar") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showRestoreConfirmDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    // Confirmación antes de cerrar sesión de la nube (deja de sincronizar hasta volver a iniciar sesión)
+    if (showSignOutConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showSignOutConfirmDialog = false },
+            icon = { Icon(Icons.Default.ExitToApp, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("¿Cerrar sesión de la nube?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Tus datos seguirán guardados en este dispositivo y en tu cuenta, pero dejarán de sincronizarse hasta que vuelvas a iniciar sesión.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSignOutConfirmDialog = false
+                        onSignOutCloud()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Cerrar Sesión") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showSignOutConfirmDialog = false }) { Text("Cancelar") }
+            }
+        )
     }
 
     // Diálogo para configurar o cambiar el PIN de 4 dígitos
