@@ -429,34 +429,12 @@ fun QuickAddPaymentSheet(
 
     // Diálogo de confirmación antes de descartar abono
     if (showDiscardPaymentDialog) {
-        AlertDialog(
+        DiscardChangesDialog(
+            itemLabel = "abono",
             onDismissRequest = { showDiscardPaymentDialog = false },
-            title = { Text("¿Deseas descartar el abono?", fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    "Aún no has registrado este abono. Si sales ahora, los datos introducidos se perderán."
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showDiscardPaymentDialog = false
-                        onDismiss()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    )
-                ) {
-                    Text("Descartar")
-                }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(
-                    onClick = { showDiscardPaymentDialog = false }
-                ) {
-                    Text("Seguir editando", fontWeight = FontWeight.SemiBold)
-                }
+            onConfirmDiscard = {
+                showDiscardPaymentDialog = false
+                onDismiss()
             }
         )
     }

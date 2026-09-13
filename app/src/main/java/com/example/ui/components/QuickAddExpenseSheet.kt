@@ -1828,37 +1828,12 @@ fun QuickAddExpenseSheet(
 
     // Diálogo de confirmación antes de descartar cambios en el registro
     if (showDiscardWarningDialog) {
-        AlertDialog(
+        DiscardChangesDialog(
+            itemLabel = "gasto",
             onDismissRequest = { showDiscardWarningDialog = false },
-            title = { Text("¿Deseas descartar el registro?", fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    "Aún no has guardado este gasto. Si sales ahora, los datos introducidos se perderán."
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showDiscardWarningDialog = false
-                        onDismiss()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    )
-                ) {
-                    Text("Descartar")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showDiscardWarningDialog = false
-                        // Continuar editando
-                    }
-                ) {
-                    Text("Seguir editando", fontWeight = FontWeight.SemiBold)
-                }
+            onConfirmDiscard = {
+                showDiscardWarningDialog = false
+                onDismiss()
             }
         )
     }
