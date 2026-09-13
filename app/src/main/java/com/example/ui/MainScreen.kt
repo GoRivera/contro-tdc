@@ -420,51 +420,56 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                     // ocupar dos espacios fijos en la barra de navegación (antes eran 6 pestañas
                     // siempre visibles; con esto quedan 5, más cómodo en pantallas de celular).
                     // No cambia a qué pestaña navega cada una (siguen siendo selectedTab 2 y 3).
-                    Box {
-                        NavigationBarItem(
-                            selected = selectedTab == 2 || selectedTab == 3,
-                            onClick = {
-                                AppHaptics.light(haptic, isHapticsEnabled)
-                                showMoreMenu = true
-                            },
-                            icon = { Icon(Icons.Default.MoreHoriz, contentDescription = "Más") },
-                            label = {
-                                Text(
-                                    "Más",
-                                    fontSize = 9.sp,
-                                    fontWeight = if (selectedTab == 2 || selectedTab == 3) FontWeight.Bold else FontWeight.Normal
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                            ),
-                            modifier = Modifier.testTag("nav_more")
-                        )
-                        DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Suscripciones") },
-                                leadingIcon = { Icon(Icons.Default.Subscriptions, contentDescription = null) },
-                                onClick = {
-                                    showMoreMenu = false
-                                    selectedTab = 2
-                                },
-                                modifier = Modifier.testTag("nav_subscriptions")
+                    NavigationBarItem(
+                        selected = selectedTab == 2 || selectedTab == 3,
+                        onClick = {
+                            AppHaptics.light(haptic, isHapticsEnabled)
+                            showMoreMenu = true
+                        },
+                        icon = {
+                            // El Box ancla el DropdownMenu al ícono; NavigationBarItem necesita
+                            // seguir siendo hijo directo de RowScope (lo que da NavigationBar), así
+                            // que el menú no puede envolver a todo el NavigationBarItem.
+                            Box {
+                                Icon(Icons.Default.MoreHoriz, contentDescription = "Más")
+                                DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text("Suscripciones") },
+                                        leadingIcon = { Icon(Icons.Default.Subscriptions, contentDescription = null) },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            selectedTab = 2
+                                        },
+                                        modifier = Modifier.testTag("nav_subscriptions")
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Gasolina") },
+                                        leadingIcon = { Icon(Icons.Default.LocalGasStation, contentDescription = null) },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            selectedTab = 3
+                                        },
+                                        modifier = Modifier.testTag("nav_fuel")
+                                    )
+                                }
+                            }
+                        },
+                        label = {
+                            Text(
+                                "Más",
+                                fontSize = 9.sp,
+                                fontWeight = if (selectedTab == 2 || selectedTab == 3) FontWeight.Bold else FontWeight.Normal
                             )
-                            DropdownMenuItem(
-                                text = { Text("Gasolina") },
-                                leadingIcon = { Icon(Icons.Default.LocalGasStation, contentDescription = null) },
-                                onClick = {
-                                    showMoreMenu = false
-                                    selectedTab = 3
-                                },
-                                modifier = Modifier.testTag("nav_fuel")
-                            )
-                        }
-                    }
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
+                        modifier = Modifier.testTag("nav_more")
+                    )
                     NavigationBarItem(
                         selected = selectedTab == 4,
                         onClick = {
