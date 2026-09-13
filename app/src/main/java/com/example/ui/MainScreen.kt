@@ -96,6 +96,7 @@ import com.example.ui.screens.FuelScreen
 import com.example.ui.screens.MsiTrackerScreen
 import com.example.ui.screens.RecommendationScreen
 import com.example.ui.screens.ServicesScreen
+import com.example.ui.screens.SpendingTrendsScreen
 import com.example.ui.screens.StatementsScreen
 import com.example.ui.screens.SubscriptionsScreen
 import com.example.ui.theme.NaturalBackgroundLight
@@ -283,6 +284,26 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                                     imageVector = Icons.Default.Bolt,
                                     contentDescription = "Servicios: agua, luz y gas",
                                     tint = if (selectedTab == 7) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        // Botón de Tendencias de Gasto
+                        Surface(
+                            shape = CircleShape,
+                            color = if (selectedTab == 8) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable { selectedTab = 8 }
+                                .testTag("btn_top_trends")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.TrendingUp,
+                                    contentDescription = "Tendencias de gasto",
+                                    tint = if (selectedTab == 8) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -672,6 +693,11 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                         )
                     },
                     onDeleteEntry = { viewModel.deleteServiceEntry(it) }
+                )
+
+                8 -> SpendingTrendsScreen(
+                    expenses = allExpenses,
+                    onClose = { selectedTab = 0 }
                 )
             }
             }
