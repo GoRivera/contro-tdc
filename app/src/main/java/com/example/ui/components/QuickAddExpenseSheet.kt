@@ -102,6 +102,10 @@ fun QuickAddExpenseSheet(
     currentMonth: String = "Agosto",
     lockToCurrentMonth: Boolean = false,
     availableMonths: List<String> = listOf("Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre", "Enero", "Febrero"),
+    initialConcepts: List<String> = listOf("Gasolina", "Despensa Walmart", "Amazon", "TotalPlay", "CFE", "Mercado Pago", "Aurrerá", "Restaurante"),
+    initialPeople: List<String> = listOf("Personal", "Familiar", "Pareja", "Hijos", "Trabajo", "Amigo"),
+    onConceptsListChanged: (List<String>) -> Unit = {},
+    onPeopleListChanged: (List<String>) -> Unit = {},
     onDismiss: () -> Unit,
     onSave: (
         cardId: Long,
@@ -187,15 +191,15 @@ fun QuickAddExpenseSheet(
     }
 
     // 1. REQUISITO USUARIO: CONCEPTOS SUGERIDOS EDITABLES (agregar, editar, eliminar, reordenar)
-    var quickConcepts by remember {
-        mutableStateOf(listOf("Gasolina", "Despensa Walmart", "Amazon", "TotalPlay", "CFE", "Mercado Pago", "Aurrerá", "Restaurante"))
-    }
+    // Se inicializa desde initialConcepts (persistido fuera de este formulario) para que los cambios
+    // sobrevivan a cerrar y volver a abrir el registro de gasto.
+    var quickConcepts by remember(initialConcepts) { mutableStateOf(initialConcepts) }
     var showManageConceptsDialog by remember { mutableStateOf(false) }
 
     // 3. REQUISITO USUARIO: LISTA DE PERSONAS EDITABLE (agregar, editar, eliminar, reordenar)
-    var allPeople by remember {
-        mutableStateOf(listOf("Personal", "Familiar", "Pareja", "Hijos", "Trabajo", "Amigo"))
-    }
+    // Igual que quickConcepts: se inicializa desde initialPeople (persistido) para que nombres como
+    // "Pedro"/"Juan" que el usuario agregue queden disponibles en futuros registros.
+    var allPeople by remember(initialPeople) { mutableStateOf(initialPeople) }
     var showManagePeopleDialog by remember { mutableStateOf(false) }
 
     // 2. REQUISITO USUARIO: DIVISOR DE GASTOS PARA 2 O MÁS PERSONAS CON PARTICIPACIÓN PERSONAL OPCIONAL
@@ -1869,6 +1873,7 @@ fun QuickAddExpenseSheet(
             onDismiss = { showManageConceptsDialog = false },
             onSaveList = { updatedList ->
                 quickConcepts = updatedList
+                onConceptsListChanged(updatedList)
                 if (!updatedList.contains(concept) && updatedList.isNotEmpty() && concept.isBlank()) {
                     concept = updatedList.first()
                 }
@@ -1886,6 +1891,7 @@ fun QuickAddExpenseSheet(
             onDismiss = { showManagePeopleDialog = false },
             onSaveList = { updatedList ->
                 allPeople = updatedList
+                onPeopleListChanged(updatedList)
                 if (!updatedList.contains(selectedBeneficiary) && updatedList.isNotEmpty()) {
                     selectedBeneficiary = updatedList.first()
                 }

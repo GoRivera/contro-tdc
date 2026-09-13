@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.CreditCard
 import com.example.data.model.Expense
+import com.example.data.model.Payment
 import com.example.domain.CashFlowRelease
 import com.example.domain.MsiSummary
 import com.example.ui.components.CashFlowBarChart
@@ -89,6 +90,8 @@ fun MsiTrackerScreen(
     msiList: List<MsiSummary>,
     cashFlowProjections: List<CashFlowRelease>,
     cards: List<CreditCard> = emptyList(),
+    allExpenses: List<Expense> = emptyList(),
+    allPayments: List<Payment> = emptyList(),
     onAdvanceInstallment: ((Expense) -> Unit)? = null,
     onOpenAddExpense: () -> Unit = {},
     onUpdateMsiExpense: (
@@ -789,6 +792,8 @@ fun MsiTrackerScreen(
     selectedMsiForAmortization?.let { msiSummary ->
         MsiAmortizationDialog(
             msiSummary = msiSummary,
+            allExpenses = allExpenses,
+            allPayments = allPayments,
             onDismiss = { selectedMsiForAmortization = null },
             onEdit = {
                 val exp = msiSummary.expense

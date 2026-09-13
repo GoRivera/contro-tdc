@@ -24,6 +24,7 @@ val NaturalSuccess = Color(0xFF0D9488) // Corporate Teal
 val NaturalSuccessContainer = Color(0xFFCCFBF1)
 val NaturalError = Color(0xFFBA1A1A)
 val NaturalErrorContainer = Color(0xFFFFDAD6)
+val NaturalOnErrorContainer = Color(0xFF410E0B) // NaturalErrorContainer no cambia en modo oscuro, así que su texto tampoco
 
 // Corporate Blue Dark Palette (Deep Navy Blue / Midnight Corporate)
 val NaturalBackgroundDark = Color(0xFF0B1320)

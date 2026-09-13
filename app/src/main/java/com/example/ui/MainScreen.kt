@@ -148,6 +148,10 @@ fun MainScreen(viewModel: CreditCardViewModel) {
     val selectedCardId by viewModel.selectedCardId.collectAsStateWithLifecycle()
     val allExpenses by viewModel.allExpenses.collectAsStateWithLifecycle()
     val allPayments by viewModel.allPayments.collectAsStateWithLifecycle()
+    val quickConcepts by viewModel.quickConcepts.collectAsStateWithLifecycle()
+    val peopleList by viewModel.peopleList.collectAsStateWithLifecycle()
+    val paymentConcepts by viewModel.paymentConcepts.collectAsStateWithLifecycle()
+    val payersList by viewModel.payersList.collectAsStateWithLifecycle()
     val subscriptions by viewModel.allSubscriptions.collectAsStateWithLifecycle()
     val subscriptionTrackings by viewModel.subscriptionTrackings.collectAsStateWithLifecycle()
     val trackingYearMonth by viewModel.trackingYearMonth.collectAsStateWithLifecycle()
@@ -472,6 +476,8 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                     msiList = msiSummaries,
                     cashFlowProjections = cashFlowProjections,
                     cards = cards,
+                    allExpenses = allExpenses,
+                    allPayments = allPayments,
                     onOpenAddExpense = { showAddExpenseSheet = true },
                     onUpdateMsiExpense = { exp, concept, totalAmount, monthlyPayment, cardId, category, beneficiary, msiTotalMonths, msiCurrentInstallment, notes ->
                         viewModel.updateMsiExpense(
@@ -665,6 +671,10 @@ fun MainScreen(viewModel: CreditCardViewModel) {
             currentMonth = selectedMonth,
             lockToCurrentMonth = (selectedTab == 4),
             availableMonths = viewModel.availableMonths,
+            initialConcepts = quickConcepts,
+            initialPeople = peopleList,
+            onConceptsListChanged = { viewModel.updateQuickConcepts(it) },
+            onPeopleListChanged = { viewModel.updatePeopleList(it) },
             onDismiss = { showAddExpenseSheet = false },
             onSave = { cardId, concept, amount, dateMillis, beneficiary, category, isMsi, totalM, curInst, sMonth, totalPurchase ->
                 viewModel.addExpense(
@@ -692,6 +702,10 @@ fun MainScreen(viewModel: CreditCardViewModel) {
             defaultCardId = selectedCardId,
             currentMonth = selectedMonth,
             availableMonths = viewModel.availableMonths,
+            initialConcepts = paymentConcepts,
+            initialPayers = payersList,
+            onConceptsListChanged = { viewModel.updatePaymentConcepts(it) },
+            onPayersListChanged = { viewModel.updatePayersList(it) },
             onDismiss = { showAddPaymentSheet = false },
             onSave = { cardId, concept, amount, payer, sMonth ->
                 viewModel.addPayment(

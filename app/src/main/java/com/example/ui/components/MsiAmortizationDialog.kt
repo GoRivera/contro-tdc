@@ -51,6 +51,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.data.model.Expense
+import com.example.data.model.Payment
 import com.example.domain.CreditCardCalculator
 import com.example.domain.MsiSummary
 import java.text.NumberFormat
@@ -68,12 +70,15 @@ data class AmortizationRow(
 enum class InstallmentStatus {
     PAID,
     CURRENT,
+    OVERDUE, // El corte ya pasó (se cargó a la tarjeta) pero el estado de cuenta no se ha liquidado
     PENDING
 }
 
 @Composable
 fun MsiAmortizationDialog(
     msiSummary: MsiSummary,
+    allExpenses: List<Expense> = emptyList(),
+    allPayments: List<Payment> = emptyList(),
     onDismiss: () -> Unit,
     onEdit: (() -> Unit)? = null
 ) {
@@ -88,7 +93,7 @@ fun MsiAmortizationDialog(
     }
 
     // Calcular las filas de la tabla de amortización
-    val rows = remember(msiSummary) {
+    val rows = remember(msiSummary, allExpenses, allPayments) {
         val baseCal = CreditCardCalculator.getMsiBaseCalendar(exp)
         (1..totalMonths).map { instNum ->
             val rowCal = baseCal.clone() as Calendar
@@ -98,9 +103,21 @@ fun MsiAmortizationDialog(
 
             val remaining = (totalPurchase - (msiSummary.monthlyPayment * instNum)).coerceAtLeast(0.0)
             val status = when {
-                instNum < currentInst -> InstallmentStatus.PAID
+                instNum > currentInst -> InstallmentStatus.PENDING
                 instNum == currentInst -> InstallmentStatus.CURRENT
-                else -> InstallmentStatus.PENDING
+                else -> {
+                    // El corte de esta cuota ya pasó (por eso avanzó "currentInst"), pero eso no
+                    // significa que el usuario ya haya liquidado ese estado de cuenta. Solo se marca
+                    // "Pagado" si los pagos registrados para ese corte cubren los cargos.
+                    val settled = CreditCardCalculator.isStatementPeriodSettled(
+                        cardId = exp.cardId,
+                        year = rowCal.get(Calendar.YEAR),
+                        monthName = monthLabel,
+                        expenses = allExpenses,
+                        payments = allPayments
+                    )
+                    if (settled) InstallmentStatus.PAID else InstallmentStatus.OVERDUE
+                }
             }
 
             AmortizationRow(
@@ -428,6 +445,21 @@ fun MsiAmortizationDialog(
                                                 fontSize = 9.sp,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 color = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    InstallmentStatus.OVERDUE -> {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = MaterialTheme.colorScheme.errorContainer
+                                        ) {
+                                            Text(
+                                                text = "No liquidado",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onErrorContainer,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
                                         }

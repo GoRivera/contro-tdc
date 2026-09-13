@@ -910,6 +910,38 @@ object CreditCardCalculator {
         )
     }
 
+    /**
+     * Indica si el saldo de la tarjeta [cardId] para el periodo de corte [monthName] [year] ya quedó
+     * liquidado (pagos registrados >= cargos registrados para ese corte). Se usa para saber si una
+     * mensualidad de MSI que ya se cargó en un corte pasado realmente se PAGÓ, en vez de asumir que
+     * "ya pasó su corte" equivale a "ya está pagada" — son cosas distintas: el corte avanza solo con
+     * el calendario, pero el pago depende de que el usuario liquide el estado de cuenta.
+     */
+    fun isStatementPeriodSettled(
+        cardId: Long,
+        year: Int,
+        monthName: String,
+        expenses: List<Expense>,
+        payments: List<Payment>
+    ): Boolean {
+        val normMonth = normalizeMonth(monthName)
+        val totalCharges = expenses
+            .filter {
+                it.cardId == cardId &&
+                    extractYear(it.dateMillis, it.targetStatementMonth) == year &&
+                    normalizeMonth(it.targetStatementMonth) == normMonth
+            }
+            .sumOf { it.amount }
+        val totalPayments = payments
+            .filter {
+                it.cardId == cardId &&
+                    extractYear(it.dateMillis, it.targetStatementMonth) == year &&
+                    normalizeMonth(it.targetStatementMonth) == normMonth
+            }
+            .sumOf { it.amount }
+        return (totalCharges - totalPayments) <= 0.01
+    }
+
     fun formatDate(millis: Long): String {
         return shortDateFormat.format(Date(millis))
     }

@@ -64,6 +64,10 @@ fun QuickAddPaymentSheet(
     defaultCardId: Long? = null,
     currentMonth: String = "Agosto",
     availableMonths: List<String> = listOf("Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre", "Enero", "Febrero"),
+    initialConcepts: List<String> = listOf("Pago TDC", "Bonificación", "Devolución / Reembolso", "Abono Terceros", "Abono Familiar"),
+    initialPayers: List<String> = listOf("Personal", "Familiar", "Pareja", "Banco", "Empresa"),
+    onConceptsListChanged: (List<String>) -> Unit = {},
+    onPayersListChanged: (List<String>) -> Unit = {},
     onDismiss: () -> Unit,
     onSave: (
         cardId: Long,
@@ -93,16 +97,15 @@ fun QuickAddPaymentSheet(
     var selectedMonth by remember { mutableStateOf(currentMonth) }
     var selectedPayer by remember { mutableStateOf("Personal") }
 
-    // Conceptos sugeridos de abonos editables (posiciones, editar, eliminar, agregar)
-    var quickConcepts by remember {
-        mutableStateOf(listOf("Pago TDC", "Bonificación", "Devolución / Reembolso", "Abono Terceros", "Abono Familiar"))
-    }
+    // Conceptos sugeridos de abonos editables (posiciones, editar, eliminar, agregar).
+    // Se inicializa desde initialConcepts (persistido fuera de este formulario) para que los cambios
+    // sobrevivan a cerrar y volver a abrir el registro de abono.
+    var quickConcepts by remember(initialConcepts) { mutableStateOf(initialConcepts) }
     var showManageConceptsDialog by remember { mutableStateOf(false) }
 
-    // Personas que abonan editables (editar, eliminar, agregar, reordenar)
-    var payersList by remember {
-        mutableStateOf(listOf("Personal", "Familiar", "Pareja", "Banco", "Empresa"))
-    }
+    // Personas que abonan editables (editar, eliminar, agregar, reordenar). Igual que quickConcepts,
+    // se inicializa desde initialPayers (persistido).
+    var payersList by remember(initialPayers) { mutableStateOf(initialPayers) }
     var showManagePayersDialog by remember { mutableStateOf(false) }
 
     // Diálogo de advertencia de descarte
@@ -398,6 +401,7 @@ fun QuickAddPaymentSheet(
             onDismiss = { showManageConceptsDialog = false },
             onSaveList = { updatedList ->
                 quickConcepts = updatedList
+                onConceptsListChanged(updatedList)
                 if (!updatedList.contains(concept) && updatedList.isNotEmpty()) {
                     concept = updatedList.first()
                 }
@@ -415,6 +419,7 @@ fun QuickAddPaymentSheet(
             onDismiss = { showManagePayersDialog = false },
             onSaveList = { updatedList ->
                 payersList = updatedList
+                onPayersListChanged(updatedList)
                 if (!updatedList.contains(selectedPayer) && updatedList.isNotEmpty()) {
                     selectedPayer = updatedList.first()
                 }

@@ -30,7 +30,8 @@ private val DarkColorScheme = darkColorScheme(
     onSurfaceVariant = NaturalTextSecondaryDark,
     outline = NaturalOutlineDark,
     error = NaturalError,
-    errorContainer = NaturalErrorContainer
+    errorContainer = NaturalErrorContainer,
+    onErrorContainer = NaturalOnErrorContainer
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -51,7 +52,8 @@ private val LightColorScheme = lightColorScheme(
     outline = NaturalOutline,
     outlineVariant = NaturalOutlineVariant,
     error = NaturalError,
-    errorContainer = NaturalErrorContainer
+    errorContainer = NaturalErrorContainer,
+    onErrorContainer = NaturalOnErrorContainer
 )
 
 @Composable
