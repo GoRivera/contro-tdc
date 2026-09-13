@@ -410,7 +410,7 @@ fun AccountScreen(
                             icon = Icons.Default.LocalGasStation,
                             count = fuelEntries.size,
                             label = "Cargas Gasolina",
-                            color = Color(0xFFD32F2F),
+                            color = if (isDark) Color(0xFFE57373) else Color(0xFFD32F2F),
                             modifier = Modifier.weight(1f)
                         )
                     }
