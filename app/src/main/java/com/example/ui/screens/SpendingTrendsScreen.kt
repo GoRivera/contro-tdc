@@ -35,16 +35,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Expense
-import com.example.domain.CreditCardCalculator
+import com.example.domain.StatementPeriod
 import com.example.ui.util.LocalPrivacyMode
 import com.example.ui.util.PrivacyFormat
 import java.text.NumberFormat
 import java.util.Locale
-
-private val monthOrder = listOf(
-    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-)
 
 /**
  * Pantalla de tendencias de gasto: total mensual de los últimos meses (para detectar de un vistazo
@@ -58,33 +53,23 @@ fun SpendingTrendsScreen(
     val isPrivate = LocalPrivacyMode.current
     val currencyFormat = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
 
-    // Agrupar por (año, mes) y sumar montos; ordenar cronológicamente y quedarse con los últimos 6.
+    // Agrupar por periodo de corte y sumar montos; ordenar cronológicamente y quedarse con los
+    // últimos 6. StatementPeriod ya sabe compararse/ordenarse, así que no hace falta un comparador
+    // manual con el índice del mes.
     val monthlyTotals = remember(expenses) {
-        expenses.groupBy {
-            val year = CreditCardCalculator.extractYear(it.dateMillis, it.targetStatementMonth)
-            val month = CreditCardCalculator.normalizeMonth(
-                it.targetStatementMonth.ifBlank { CreditCardCalculator.extractYearMonth(it.dateMillis) }
-            )
-            year to month
-        }
-            .map { (key, list) -> key to list.sumOf { it.amount } }
-            .sortedWith(compareBy({ it.first.first }, { monthOrder.indexOf(it.first.second).let { i -> if (i < 0) 99 else i } }))
+        expenses.groupBy { StatementPeriod.from(it.dateMillis, it.targetStatementMonth) }
+            .map { (period, list) -> period to list.sumOf { it.amount } }
+            .sortedBy { it.first }
             .takeLast(6)
     }
 
     // Desglose por categoría del mes más reciente con información
-    val latestMonthKey = monthlyTotals.lastOrNull()?.first
-    val categoryBreakdown = remember(expenses, latestMonthKey) {
-        if (latestMonthKey == null) {
+    val latestPeriod = monthlyTotals.lastOrNull()?.first
+    val categoryBreakdown = remember(expenses, latestPeriod) {
+        if (latestPeriod == null) {
             emptyList()
         } else {
-            expenses.filter {
-                val year = CreditCardCalculator.extractYear(it.dateMillis, it.targetStatementMonth)
-                val month = CreditCardCalculator.normalizeMonth(
-                    it.targetStatementMonth.ifBlank { CreditCardCalculator.extractYearMonth(it.dateMillis) }
-                )
-                (year to month) == latestMonthKey
-            }
+            expenses.filter { StatementPeriod.from(it.dateMillis, it.targetStatementMonth) == latestPeriod }
                 .groupBy { it.category.ifBlank { "Otros" } }
                 .map { (category, list) -> category to list.sumOf { it.amount } }
                 .sortedByDescending { it.second }
@@ -151,7 +136,7 @@ fun SpendingTrendsScreen(
         if (categoryBreakdown.isNotEmpty()) {
             item {
                 Text(
-                    text = "DESGLOSE POR CATEGORÍA (${latestMonthKey?.second ?: ""} ${latestMonthKey?.first ?: ""})",
+                    text = "DESGLOSE POR CATEGORÍA (${latestPeriod?.label ?: ""})",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp,
@@ -204,7 +189,7 @@ fun SpendingTrendsScreen(
 
 @Composable
 private fun MonthlySpendingBarChart(
-    monthlyTotals: List<Pair<Pair<Int, String>, Double>>,
+    monthlyTotals: List<Pair<StatementPeriod, Double>>,
     currencyFormat: NumberFormat,
     isPrivate: Boolean
 ) {
@@ -234,7 +219,7 @@ private fun MonthlySpendingBarChart(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.Bottom
             ) {
-                monthlyTotals.forEach { (key, total) ->
+                monthlyTotals.forEach { (period, total) ->
                     val ratio = (total / maxValue).coerceIn(0.0, 1.0).toFloat()
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
@@ -256,7 +241,7 @@ private fun MonthlySpendingBarChart(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = key.second.take(3),
+                            text = period.normalizedMonthName.take(3),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
