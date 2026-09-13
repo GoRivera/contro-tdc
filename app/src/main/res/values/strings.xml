@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Control TDC</string>
+    <string name="shortcut_add_expense_short">Registrar Gasto</string>
+    <string name="shortcut_add_expense_long">Registrar un nuevo gasto</string>
+    <string name="shortcut_add_payment_short">Registrar Abono</string>
+    <string name="shortcut_add_payment_long">Registrar un nuevo abono</string>
 </resources>

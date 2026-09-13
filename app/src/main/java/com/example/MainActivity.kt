@@ -20,6 +20,8 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Acceso directo de la app (mantener presionado el ícono): registrar gasto/abono en un toque.
+        val shortcutAction = intent?.getStringExtra("shortcut_action")
         setContent {
             val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
             val darkTheme = when (themeMode) {
@@ -28,7 +30,7 @@ class MainActivity : FragmentActivity() {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
             }
             MyApplicationTheme(darkTheme = darkTheme) {
-                MainScreen(viewModel = viewModel)
+                MainScreen(viewModel = viewModel, initialAction = shortcutAction)
             }
         }
     }

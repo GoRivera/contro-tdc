@@ -63,6 +63,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -109,12 +110,21 @@ import com.example.ui.viewmodel.CreditCardViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(viewModel: CreditCardViewModel) {
+fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
     var showAddExpenseSheet by remember { mutableStateOf(false) }
     var showAddPaymentSheet by remember { mutableStateOf(false) }
     var showExitConfirmDialog by remember { mutableStateOf(false) }
+
+    // Acceso directo de la app ("mantener presionado" el ícono): abre directo el registro
+    // correspondiente en cuanto se lanza la actividad desde ese shortcut.
+    LaunchedEffect(initialAction) {
+        when (initialAction) {
+            "add_expense" -> showAddExpenseSheet = true
+            "add_payment" -> showAddPaymentSheet = true
+        }
+    }
 
     // Scroll listener para reducir el tamaño del botón flotante al desplazarse
     var isFabExpanded by remember { mutableStateOf(true) }

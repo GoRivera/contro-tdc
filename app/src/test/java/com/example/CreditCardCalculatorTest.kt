@@ -5,6 +5,8 @@ import com.example.data.model.Expense
 import com.example.data.model.Payment
 import com.example.domain.CreditCardCalculator
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Calendar
@@ -131,5 +133,109 @@ class CreditCardCalculatorTest {
         assertEquals("Octubre", CreditCardCalculator.normalizeMonth("2026-10"))
         assertEquals("Agosto", CreditCardCalculator.normalizeMonth("agosto"))
         assertEquals("Septiembre", CreditCardCalculator.normalizeMonth("SEPTIEMBRE"))
+    }
+
+    @Test
+    fun testMsiAutoTimelineFirstCharge() {
+        // Like U: corte día 12. Compra el día 10 (antes del corte) -> primer cargo en el mismo mes.
+        val cal = Calendar.getInstance()
+        cal.set(2026, Calendar.JULY, 10, 12, 0, 0)
+        val timelineSameMonth = CreditCardCalculator.calculateMsiAutoTimeline(
+            purchaseDateMillis = cal.timeInMillis,
+            cardCutoffDay = likeU.cutoffDay,
+            totalMonths = 12
+        )
+        assertEquals(Calendar.JULY, timelineSameMonth.firstChargeMonthIndex)
+        assertEquals(2026, timelineSameMonth.firstChargeYear)
+        // El año no debe repetirse en la descripción (bug corregido: "Julio 2026 2026")
+        assertFalse(timelineSameMonth.explanation.contains("2026 2026"))
+        assertFalse(timelineSameMonth.firstChargeMonth.contains("2026 2026"))
+
+        // Compra el día 14 (después del corte) -> primer cargo hasta el mes siguiente.
+        cal.set(2026, Calendar.JULY, 14, 12, 0, 0)
+        val timelineNextMonth = CreditCardCalculator.calculateMsiAutoTimeline(
+            purchaseDateMillis = cal.timeInMillis,
+            cardCutoffDay = likeU.cutoffDay,
+            totalMonths = 12
+        )
+        assertEquals(Calendar.AUGUST, timelineNextMonth.firstChargeMonthIndex)
+        assertEquals(2026, timelineNextMonth.firstChargeYear)
+    }
+
+    @Test
+    fun testCalculateOriginalPurchaseDateRoundTrip() {
+        // Registrar un MSI "de hace tiempo": corte activo Septiembre 2026, cuota 3 de 12.
+        // El primer cargo debió haber sido en Julio 2026 (2 meses antes).
+        val purchaseMillis = CreditCardCalculator.calculateOriginalPurchaseDate(
+            statementMonthName = "Septiembre",
+            statementYear = 2026,
+            currentInstallment = 3
+        )
+
+        val timeline = CreditCardCalculator.calculateMsiAutoTimeline(
+            purchaseDateMillis = purchaseMillis,
+            cardCutoffDay = likeU.cutoffDay,
+            totalMonths = 12,
+            targetStatementMonthName = "Septiembre",
+            targetStatementYear = 2026
+        )
+
+        assertEquals(Calendar.JULY, timeline.firstChargeMonthIndex)
+        assertEquals(2026, timeline.firstChargeYear)
+        assertEquals(3, timeline.currentInstallment)
+    }
+
+    @Test
+    fun testCalculateStatementMonthForInstallment() {
+        // Compra el 10 de julio de 2026 (antes del corte día 12 de Like U).
+        val cal = Calendar.getInstance()
+        cal.set(2026, Calendar.JULY, 10, 12, 0, 0)
+        val purchaseMillis = cal.timeInMillis
+
+        assertEquals(
+            "Julio 2026",
+            CreditCardCalculator.calculateStatementMonthForInstallment(purchaseMillis, likeU.cutoffDay, 1)
+        )
+        assertEquals(
+            "Septiembre 2026",
+            CreditCardCalculator.calculateStatementMonthForInstallment(purchaseMillis, likeU.cutoffDay, 3)
+        )
+    }
+
+    @Test
+    fun testResolveNearestYearForMonthCrossesYearBoundary() {
+        val today = Calendar.getInstance().apply { set(2026, Calendar.JANUARY, 15, 12, 0, 0) }.time
+
+        // "Diciembre" visto desde enero de 2026 es diciembre del año ANTERIOR (2025), no 2026.
+        assertEquals(2025, CreditCardCalculator.resolveNearestYearForMonth("Diciembre", today))
+        // Un mes cercano (Febrero) se queda en el mismo año de referencia.
+        assertEquals(2026, CreditCardCalculator.resolveNearestYearForMonth("Febrero", today))
+    }
+
+    @Test
+    fun testIsStatementPeriodSettled() {
+        val expenses = listOf(
+            Expense(id = 1, cardId = 1, concept = "MSI cuota", amount = 500.0, dateMillis = 0, targetStatementMonth = "Septiembre 2026")
+        )
+        val paymentsFull = listOf(
+            Payment(id = 1, cardId = 1, concept = "Pago TDC", amount = 500.0, dateMillis = 0, targetStatementMonth = "Septiembre 2026")
+        )
+        val paymentsPartial = listOf(
+            Payment(id = 1, cardId = 1, concept = "Pago TDC", amount = 200.0, dateMillis = 0, targetStatementMonth = "Septiembre 2026")
+        )
+
+        assertTrue(CreditCardCalculator.isStatementPeriodSettled(1L, 2026, "Septiembre 2026", expenses, paymentsFull))
+        assertFalse(CreditCardCalculator.isStatementPeriodSettled(1L, 2026, "Septiembre 2026", expenses, paymentsPartial))
+        assertFalse(CreditCardCalculator.isStatementPeriodSettled(1L, 2026, "Septiembre 2026", expenses, emptyList()))
+    }
+
+    @Test
+    fun testParseLocalizedDouble() {
+        assertEquals(1500.50, CreditCardCalculator.parseLocalizedDouble("1,500.50")!!, 0.001)
+        assertEquals(1500.50, CreditCardCalculator.parseLocalizedDouble("1.500,50")!!, 0.001)
+        assertEquals(230.0, CreditCardCalculator.parseLocalizedDouble("$230.00")!!, 0.001)
+        assertEquals(230.0, CreditCardCalculator.parseLocalizedDouble("230,00")!!, 0.001)
+        assertNull(CreditCardCalculator.parseLocalizedDouble(""))
+        assertNull(CreditCardCalculator.parseLocalizedDouble(null))
     }
 }

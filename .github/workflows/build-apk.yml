@@ -34,6 +34,14 @@ jobs:
       - name: Generar local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
+      # No bloquea la generación del APK (continue-on-error): son pruebas nuevas sobre lógica de
+      # fechas/MSI que antes no tenían cobertura, pero el proyecto también incluye una prueba de
+      # captura de pantalla (Robolectric/Roborazzi) cuya compatibilidad con el entorno de CI no se
+      # ha validado todavía, y no debe impedir la entrega del APK si falla por eso.
+      - name: Ejecutar pruebas unitarias
+        run: gradle testDebugUnitTest --stacktrace
+        continue-on-error: true
+
       # Nota: debug.keystore va versionado en el repo a propósito (ver .gitignore).
       # Antes este paso generaba un keystore NUEVO en cada corrida, con una huella
       # SHA-1 distinta cada vez, lo que rompía el inicio de sesión con Google (la
