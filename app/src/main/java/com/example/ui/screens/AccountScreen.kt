@@ -53,7 +53,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.CreditCard
+import com.example.data.model.Expense
 import com.example.data.model.FuelEntry
+import com.example.data.model.Payment
 import com.example.data.model.Subscription
 import com.example.data.model.UserProfile
 import androidx.compose.material.icons.automirrored.filled.Login
@@ -87,7 +89,11 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.example.ui.util.AppHaptics
+import com.example.ui.util.ExportUtils
 import com.example.ui.theme.ThemeMode
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.FileDownload
 import com.example.data.sync.FirebaseAccountInfo
 import com.example.data.sync.SyncState
 
@@ -97,6 +103,8 @@ fun AccountScreen(
     cards: List<CreditCard>,
     subscriptions: List<Subscription>,
     fuelEntries: List<FuelEntry>,
+    expenses: List<Expense> = emptyList(),
+    payments: List<Payment> = emptyList(),
     syncState: SyncState = SyncState.Idle,
     firebaseUser: FirebaseAccountInfo? = null,
     isPrivacyMode: Boolean = false,
@@ -115,6 +123,7 @@ fun AccountScreen(
     onClose: () -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
+    val context = LocalContext.current
 
     // Corrección del bug de "se pierde lo que estabas escribiendo": antes, remember(userProfile) volvía
     // a inicializar estos campos cada vez que userProfile cambiaba (p. ej. tras un inicio de sesión con
@@ -619,6 +628,55 @@ fun AccountScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Cerrar Sesión de la Nube", fontSize = 12.sp)
                         }
+                    }
+                }
+            }
+        }
+
+        // Exportar historial a CSV (para llevar cuentas o compartir con un contador)
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.FileDownload,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Exportar Historial",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Genera un CSV con todos tus gastos y abonos para compartir o llevar cuentas.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            AppHaptics.light(haptic, isHapticsEnabled)
+                            val intent = ExportUtils.shareExpensesAndPaymentsCsv(context, expenses, payments, cards)
+                            context.startActivity(Intent.createChooser(intent, "Compartir historial (CSV)"))
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().testTag("btn_export_csv")
+                    ) {
+                        Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Exportar a CSV", fontWeight = FontWeight.Bold)
                     }
                 }
             }
