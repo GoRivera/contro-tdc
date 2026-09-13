@@ -3,7 +3,10 @@ package com.example.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.datastore.preferences.core.edit
 import com.example.data.AppDatabase
+import com.example.data.PrefsKeys
+import com.example.data.appSettingsDataStore
 import com.example.data.model.CreditCard
 import com.example.data.model.Expense
 import com.example.data.model.FuelEntry
@@ -31,6 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -94,54 +98,77 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
         )
     }
 
-    // Fase 2: Privacidad, Seguridad y Ergonomía
-    private val _isPrivacyMode = MutableStateFlow(prefs.getBoolean("privacy_mode_enabled", false))
-    val isPrivacyMode: StateFlow<Boolean> = _isPrivacyMode.asStateFlow()
+    // Fase 2 + item 4: Privacidad, Ergonomía y listas personalizables ahora viven en Jetpack
+    // DataStore en vez de SharedPreferences (más seguro con corrutinas, evita bugs de lectura/
+    // escritura concurrente). El bloqueo con PIN y el perfil de usuario se quedan en
+    // SharedPreferences (`prefs`) a propósito: son datos sensibles/con lógica síncrona al arrancar
+    // la app, y migrarlos sin poder compilar ni probar la app localmente es un riesgo de seguridad
+    // innecesario (la app podría abrir momentáneamente sin PIN mientras carga el valor real).
+    // SharedPreferencesMigration copia automáticamente, la primera vez, cualquier valor que ya
+    // existiera en SharedPreferences para estas mismas claves, así que nada de lo que el usuario
+    // ya haya configurado se pierde con la migración.
+    private val dataStore = application.appSettingsDataStore
+
+    private val _isPrivacyMode = dataStore.data
+        .map { it[PrefsKeys.PRIVACY_MODE] ?: prefs.getBoolean("privacy_mode_enabled", false) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), prefs.getBoolean("privacy_mode_enabled", false))
+    val isPrivacyMode: StateFlow<Boolean> = _isPrivacyMode
 
     fun togglePrivacyMode() {
-        val next = !_isPrivacyMode.value
-        prefs.edit().putBoolean("privacy_mode_enabled", next).apply()
-        _isPrivacyMode.value = next
+        viewModelScope.launch {
+            dataStore.edit { it[PrefsKeys.PRIVACY_MODE] = !(it[PrefsKeys.PRIVACY_MODE] ?: _isPrivacyMode.value) }
+        }
     }
 
     fun setPrivacyMode(enabled: Boolean) {
-        prefs.edit().putBoolean("privacy_mode_enabled", enabled).apply()
-        _isPrivacyMode.value = enabled
+        viewModelScope.launch {
+            dataStore.edit { it[PrefsKeys.PRIVACY_MODE] = enabled }
+        }
     }
 
     // Selector manual de tema claro/oscuro (además de seguir al sistema, como antes).
-    private val _themeMode = MutableStateFlow(
-        ThemeMode.entries.firstOrNull { it.name == prefs.getString("theme_mode", null) } ?: ThemeMode.SYSTEM
-    )
-    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+    private val _themeMode = dataStore.data
+        .map { prefsData ->
+            val stored = prefsData[PrefsKeys.THEME_MODE] ?: prefs.getString("theme_mode", null)
+            ThemeMode.entries.firstOrNull { it.name == stored } ?: ThemeMode.SYSTEM
+        }
+        .stateIn(
+            viewModelScope, SharingStarted.WhileSubscribed(5000),
+            ThemeMode.entries.firstOrNull { it.name == prefs.getString("theme_mode", null) } ?: ThemeMode.SYSTEM
+        )
+    val themeMode: StateFlow<ThemeMode> = _themeMode
 
     fun setThemeMode(mode: ThemeMode) {
-        prefs.edit().putString("theme_mode", mode.name).apply()
-        _themeMode.value = mode
+        viewModelScope.launch {
+            dataStore.edit { it[PrefsKeys.THEME_MODE] = mode.name }
+        }
     }
 
-    private val _isHapticEnabled = MutableStateFlow(prefs.getBoolean("haptics_enabled", true))
-    val isHapticEnabled: StateFlow<Boolean> = _isHapticEnabled.asStateFlow()
+    private val _isHapticEnabled = dataStore.data
+        .map { it[PrefsKeys.HAPTICS_ENABLED] ?: prefs.getBoolean("haptics_enabled", true) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), prefs.getBoolean("haptics_enabled", true))
+    val isHapticEnabled: StateFlow<Boolean> = _isHapticEnabled
 
     fun setHapticsEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean("haptics_enabled", enabled).apply()
-        _isHapticEnabled.value = enabled
+        viewModelScope.launch {
+            dataStore.edit { it[PrefsKeys.HAPTICS_ENABLED] = enabled }
+        }
     }
 
     // Listas personalizables de conceptos sugeridos y personas/beneficiarios: antes vivían solo como
     // estado local de la pantalla de registrar gasto (remember), por lo que se reiniciaban a los
     // valores por defecto cada vez que se cerraba y volvía a abrir el formulario, perdiendo cualquier
-    // nombre o concepto que el usuario hubiera agregado o quitado. Ahora se guardan en SharedPreferences
-    // a través de PersistedStringListPref, que centraliza el patrón de guardar/cargar una lista.
+    // nombre o concepto que el usuario hubiera agregado o quitado. Ahora se guardan en DataStore a
+    // través de PersistedStringListPref, que centraliza el patrón de guardar/cargar una lista.
     private val quickConceptsPref = PersistedStringListPref(
-        prefs, "quick_concepts",
+        dataStore, viewModelScope, PrefsKeys.QUICK_CONCEPTS, prefs, "quick_concepts",
         listOf("Gasolina", "Despensa Walmart", "Amazon", "TotalPlay", "CFE", "Mercado Pago", "Aurrerá", "Restaurante")
     )
     val quickConcepts: StateFlow<List<String>> = quickConceptsPref.state
     fun updateQuickConcepts(concepts: List<String>) = quickConceptsPref.update(concepts)
 
     private val peopleListPref = PersistedStringListPref(
-        prefs, "people_list",
+        dataStore, viewModelScope, PrefsKeys.PEOPLE_LIST, prefs, "people_list",
         listOf("Personal", "Familiar", "Pareja", "Hijos", "Trabajo", "Amigo")
     )
     val peopleList: StateFlow<List<String>> = peopleListPref.state
@@ -149,14 +176,14 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
 
     // Mismo caso para los abonos/pagos: conceptos sugeridos y personas/fuentes de pago.
     private val paymentConceptsPref = PersistedStringListPref(
-        prefs, "payment_concepts",
+        dataStore, viewModelScope, PrefsKeys.PAYMENT_CONCEPTS, prefs, "payment_concepts",
         listOf("Pago TDC", "Bonificación", "Devolución / Reembolso", "Abono Terceros", "Abono Familiar")
     )
     val paymentConcepts: StateFlow<List<String>> = paymentConceptsPref.state
     fun updatePaymentConcepts(concepts: List<String>) = paymentConceptsPref.update(concepts)
 
     private val payersListPref = PersistedStringListPref(
-        prefs, "payers_list",
+        dataStore, viewModelScope, PrefsKeys.PAYERS_LIST, prefs, "payers_list",
         listOf("Personal", "Familiar", "Pareja", "Banco", "Empresa")
     )
     val payersList: StateFlow<List<String>> = payersListPref.state
@@ -1213,29 +1240,37 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
 }
 
 /**
- * Lista de strings editable por el usuario (conceptos sugeridos, personas/beneficiarios, etc.) que se
- * persiste en SharedPreferences para sobrevivir a cerrar y volver a abrir el formulario donde se usa.
+ * Lista de strings editable por el usuario (conceptos sugeridos, personas/beneficiarios, etc.) que
+ * se persiste en DataStore para sobrevivir a cerrar y volver a abrir el formulario donde se usa.
  * Centraliza el patrón de guardar/cargar que antes se repetía casi idéntico para cada lista.
+ *
+ * [legacyPrefs]/[legacyPrefsKey] son el SharedPreferences y la clave que se usaban antes de migrar
+ * a DataStore: solo se leen como valor inicial síncrono (para no mostrar los valores por defecto un
+ * instante mientras la migración automática de DataStore termina), nunca se vuelven a escribir ahí.
  */
 private class PersistedStringListPref(
-    private val prefs: android.content.SharedPreferences,
-    private val key: String,
+    private val dataStore: androidx.datastore.core.DataStore<androidx.datastore.preferences.core.Preferences>,
+    private val scope: kotlinx.coroutines.CoroutineScope,
+    private val key: androidx.datastore.preferences.core.Preferences.Key<String>,
+    legacyPrefs: android.content.SharedPreferences,
+    legacyPrefsKey: String,
     default: List<String>
 ) {
-    private val _state = MutableStateFlow(load(prefs, key, default))
-    val state: StateFlow<List<String>> = _state.asStateFlow()
+    private val legacyValue = parse(legacyPrefs.getString(legacyPrefsKey, null), default)
+
+    val state: StateFlow<List<String>> = dataStore.data
+        .map { parse(it[key], legacyValue) }
+        .stateIn(scope, SharingStarted.WhileSubscribed(5000), legacyValue)
 
     fun update(list: List<String>) {
         val clean = list.map { it.trim() }.filter { it.isNotBlank() }.distinct()
-        prefs.edit().putString(key, clean.joinToString("||")).apply()
-        _state.value = clean
+        scope.launch {
+            dataStore.edit { it[key] = clean.joinToString("||") }
+        }
     }
 
-    companion object {
-        private fun load(prefs: android.content.SharedPreferences, key: String, default: List<String>): List<String> {
-            val raw = prefs.getString(key, null) ?: return default
-            val list = raw.split("||").map { it.trim() }.filter { it.isNotBlank() }
-            return if (list.isEmpty()) default else list
-        }
+    private fun parse(raw: String?, default: List<String>): List<String> {
+        val list = raw?.split("||")?.map { it.trim() }?.filter { it.isNotBlank() } ?: return default
+        return list.ifEmpty { default }
     }
 }
