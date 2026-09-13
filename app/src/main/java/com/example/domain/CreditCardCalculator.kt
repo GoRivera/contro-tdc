@@ -394,22 +394,7 @@ object CreditCardCalculator {
         // Determinar el mes de corte de referencia
         val refCal = Calendar.getInstance()
         if (!targetStatementMonthName.isNullOrBlank()) {
-            val norm = normalizeMonth(targetStatementMonthName).lowercase()
-            val mIdx = when {
-                norm.startsWith("ene") -> 0
-                norm.startsWith("feb") -> 1
-                norm.startsWith("mar") -> 2
-                norm.startsWith("abr") -> 3
-                norm.startsWith("may") -> 4
-                norm.startsWith("jun") -> 5
-                norm.startsWith("jul") -> 6
-                norm.startsWith("ago") -> 7
-                norm.startsWith("sep") -> 8
-                norm.startsWith("oct") -> 9
-                norm.startsWith("nov") -> 10
-                norm.startsWith("dic") -> 11
-                else -> refCal.get(Calendar.MONTH)
-            }
+            val mIdx = monthIndexFromName(targetStatementMonthName, refCal.get(Calendar.MONTH))
             val parsedY = if (!targetStatementMonthName.isNullOrBlank()) {
                 Regex("\\b(20\\d\\d)\\b").find(targetStatementMonthName)?.value?.toIntOrNull()
             } else null
@@ -686,22 +671,7 @@ object CreditCardCalculator {
             val month = (parts[1].toIntOrNull() ?: 8) - 1
             cal.set(year, month, 1, 12, 0, 0)
         } else {
-            val norm = normalizeMonth(raw).lowercase()
-            val monthIdx = when {
-                norm.startsWith("ene") -> 0
-                norm.startsWith("feb") -> 1
-                norm.startsWith("mar") -> 2
-                norm.startsWith("abr") -> 3
-                norm.startsWith("may") -> 4
-                norm.startsWith("jun") -> 5
-                norm.startsWith("jul") -> 6
-                norm.startsWith("ago") -> 7
-                norm.startsWith("sep") -> 8
-                norm.startsWith("oct") -> 9
-                norm.startsWith("nov") -> 10
-                norm.startsWith("dic") -> 11
-                else -> 7 // Default Agosto
-            }
+            val monthIdx = monthIndexFromName(raw, 7) // Default Agosto
             cal.set(extractedYear, monthIdx, 1, 12, 0, 0)
         }
         return cal
@@ -718,23 +688,8 @@ object CreditCardCalculator {
      * cruce de año.
      */
     fun resolveNearestYearForMonth(monthName: String, referenceDate: Date = Date()): Int {
-        val norm = normalizeMonth(monthName).lowercase()
         val refCal = Calendar.getInstance().apply { time = referenceDate }
-        val monthIdx = when {
-            norm.startsWith("ene") -> 0
-            norm.startsWith("feb") -> 1
-            norm.startsWith("mar") -> 2
-            norm.startsWith("abr") -> 3
-            norm.startsWith("may") -> 4
-            norm.startsWith("jun") -> 5
-            norm.startsWith("jul") -> 6
-            norm.startsWith("ago") -> 7
-            norm.startsWith("sep") -> 8
-            norm.startsWith("oct") -> 9
-            norm.startsWith("nov") -> 10
-            norm.startsWith("dic") -> 11
-            else -> refCal.get(Calendar.MONTH)
-        }
+        val monthIdx = monthIndexFromName(monthName, refCal.get(Calendar.MONTH))
         var year = refCal.get(Calendar.YEAR)
         val diff = monthIdx - refCal.get(Calendar.MONTH)
         if (diff > 6) year -= 1 else if (diff < -6) year += 1
@@ -747,22 +702,7 @@ object CreditCardCalculator {
      */
     fun calculateOriginalPurchaseDate(statementMonthName: String, statementYear: Int, currentInstallment: Int): Long {
         val cal = Calendar.getInstance()
-        val norm = normalizeMonth(statementMonthName).lowercase()
-        val monthIdx = when {
-            norm.startsWith("ene") -> 0
-            norm.startsWith("feb") -> 1
-            norm.startsWith("mar") -> 2
-            norm.startsWith("abr") -> 3
-            norm.startsWith("may") -> 4
-            norm.startsWith("jun") -> 5
-            norm.startsWith("jul") -> 6
-            norm.startsWith("ago") -> 7
-            norm.startsWith("sep") -> 8
-            norm.startsWith("oct") -> 9
-            norm.startsWith("nov") -> 10
-            norm.startsWith("dic") -> 11
-            else -> 7
-        }
+        val monthIdx = monthIndexFromName(statementMonthName, 7)
         // Corrección: antes se fijaba el día 15, un valor arbitrario que no tenía relación con el
         // día de corte real de la tarjeta. Como calculateMsiAutoTimeline decide el mes del primer
         // cargo comparando "día de compra" contra "día de corte", el día 15 podía quedar por encima
@@ -1005,6 +945,29 @@ object CreditCardCalculator {
             }
         }
         return trimmed.replaceFirstChar { it.uppercase() }
+    }
+
+    /**
+     * Resuelve el índice 0-11 de un nombre de mes en español (tolera acentos/mayúsculas vía
+     * normalizeMonth). Centraliza el switch que antes estaba duplicado en 4 funciones distintas.
+     */
+    private fun monthIndexFromName(raw: String, fallback: Int): Int {
+        val norm = normalizeMonth(raw).lowercase()
+        return when {
+            norm.startsWith("ene") -> 0
+            norm.startsWith("feb") -> 1
+            norm.startsWith("mar") -> 2
+            norm.startsWith("abr") -> 3
+            norm.startsWith("may") -> 4
+            norm.startsWith("jun") -> 5
+            norm.startsWith("jul") -> 6
+            norm.startsWith("ago") -> 7
+            norm.startsWith("sep") -> 8
+            norm.startsWith("oct") -> 9
+            norm.startsWith("nov") -> 10
+            norm.startsWith("dic") -> 11
+            else -> fallback
+        }
     }
 
     /**

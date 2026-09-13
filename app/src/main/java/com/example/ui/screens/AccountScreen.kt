@@ -68,12 +68,16 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Brightness6
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -83,6 +87,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.example.ui.util.AppHaptics
+import com.example.ui.theme.ThemeMode
 import com.example.data.sync.FirebaseAccountInfo
 import com.example.data.sync.SyncState
 
@@ -98,6 +103,8 @@ fun AccountScreen(
     onTogglePrivacyMode: () -> Unit = {},
     isHapticsEnabled: Boolean = true,
     onToggleHaptics: (Boolean) -> Unit = {},
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    onThemeModeChange: (ThemeMode) -> Unit = {},
     isAppLockEnabled: Boolean = false,
     onSetAppLock: (enabled: Boolean, pin: String) -> Unit = { _, _ -> },
     onSaveProfile: (fullName: String, email: String, shortName: String) -> Unit,
@@ -726,6 +733,64 @@ fun AccountScreen(
                             },
                             modifier = Modifier.testTag("switch_haptics")
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Tema de la app: Sistema (sigue al dispositivo), Claro u Oscuro forzado
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = when (themeMode) {
+                                    ThemeMode.LIGHT -> Icons.Default.LightMode
+                                    ThemeMode.DARK -> Icons.Default.DarkMode
+                                    ThemeMode.SYSTEM -> Icons.Default.Brightness6
+                                },
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Tema de la App",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = themeMode == ThemeMode.SYSTEM,
+                                onClick = {
+                                    AppHaptics.light(haptic, isHapticsEnabled)
+                                    onThemeModeChange(ThemeMode.SYSTEM)
+                                },
+                                label = { Text("Sistema") },
+                                modifier = Modifier.weight(1f).testTag("theme_mode_system")
+                            )
+                            FilterChip(
+                                selected = themeMode == ThemeMode.LIGHT,
+                                onClick = {
+                                    AppHaptics.light(haptic, isHapticsEnabled)
+                                    onThemeModeChange(ThemeMode.LIGHT)
+                                },
+                                label = { Text("Claro") },
+                                modifier = Modifier.weight(1f).testTag("theme_mode_light")
+                            )
+                            FilterChip(
+                                selected = themeMode == ThemeMode.DARK,
+                                onClick = {
+                                    AppHaptics.light(haptic, isHapticsEnabled)
+                                    onThemeModeChange(ThemeMode.DARK)
+                                },
+                                label = { Text("Oscuro") },
+                                modifier = Modifier.weight(1f).testTag("theme_mode_dark")
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))

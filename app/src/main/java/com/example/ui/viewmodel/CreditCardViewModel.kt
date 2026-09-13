@@ -22,6 +22,7 @@ import com.example.domain.CashFlowRelease
 import com.example.domain.CreditCardCalculator
 import com.example.domain.MsiSummary
 import com.example.domain.StatementSummary
+import com.example.ui.theme.ThemeMode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -106,6 +107,17 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
     fun setPrivacyMode(enabled: Boolean) {
         prefs.edit().putBoolean("privacy_mode_enabled", enabled).apply()
         _isPrivacyMode.value = enabled
+    }
+
+    // Selector manual de tema claro/oscuro (además de seguir al sistema, como antes).
+    private val _themeMode = MutableStateFlow(
+        ThemeMode.entries.firstOrNull { it.name == prefs.getString("theme_mode", null) } ?: ThemeMode.SYSTEM
+    )
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    fun setThemeMode(mode: ThemeMode) {
+        prefs.edit().putString("theme_mode", mode.name).apply()
+        _themeMode.value = mode
     }
 
     private val _isHapticEnabled = MutableStateFlow(prefs.getBoolean("haptics_enabled", true))

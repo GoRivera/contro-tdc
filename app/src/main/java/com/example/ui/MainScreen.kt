@@ -162,6 +162,7 @@ fun MainScreen(viewModel: CreditCardViewModel) {
     val firebaseUser by viewModel.currentFirebaseUser.collectAsStateWithLifecycle()
     val isPrivacyMode by viewModel.isPrivacyMode.collectAsStateWithLifecycle()
     val isHapticsEnabled by viewModel.isHapticEnabled.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val isAppLocked by viewModel.isAppLocked.collectAsStateWithLifecycle()
     val isAppLockEnabled by viewModel.isAppLockEnabled.collectAsStateWithLifecycle()
     val haptic = LocalHapticFeedback.current
@@ -479,6 +480,7 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                     allExpenses = allExpenses,
                     allPayments = allPayments,
                     onOpenAddExpense = { showAddExpenseSheet = true },
+                    onAdvanceInstallment = { exp -> viewModel.advanceMsiInstallment(exp) },
                     onUpdateMsiExpense = { exp, concept, totalAmount, monthlyPayment, cardId, category, beneficiary, msiTotalMonths, msiCurrentInstallment, notes ->
                         viewModel.updateMsiExpense(
                             expense = exp,
@@ -616,6 +618,8 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                     onTogglePrivacyMode = { viewModel.togglePrivacyMode() },
                     isHapticsEnabled = isHapticsEnabled,
                     onToggleHaptics = { viewModel.setHapticsEnabled(it) },
+                    themeMode = themeMode,
+                    onThemeModeChange = { viewModel.setThemeMode(it) },
                     isAppLockEnabled = isAppLockEnabled,
                     onSetAppLock = { enabled, pin -> viewModel.setAppLock(enabled, pin) },
                     onSaveProfile = { fullName, email, shortName ->
