@@ -35,6 +35,19 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
+        <!-- Widget de pantalla de inicio: próximo pago a vencer (item 15) -->
+        <receiver
+            android:name=".widget.NextPaymentWidgetReceiver"
+            android:exported="false"
+            android:label="Próximo Pago">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/next_payment_widget_info" />
+        </receiver>
+
         <!-- FileProvider para compartir el CSV exportado (historial de gastos/pagos) con otras apps -->
         <provider
             android:name="androidx.core.content.FileProvider"
