@@ -708,6 +708,40 @@ object CreditCardCalculator {
     }
 
     /**
+     * Resuelve el año más cercano a "hoy" (o a [referenceDate]) para un nombre de mes suelto sin año
+     * (p. ej. "Diciembre"), asumiendo que ese mes se refiere a un periodo cercano a la fecha de
+     * referencia (a lo más ~6 meses de distancia en cualquier dirección).
+     *
+     * Evita el bug de asumir siempre "el año en curso": si hoy es enero de 2026 y el mes de
+     * referencia es "Diciembre" (el corte recién cerrado), en realidad corresponde a diciembre de
+     * 2025, no de 2026 — asumir el año en curso desplazaba el cálculo un año completo justo en el
+     * cruce de año.
+     */
+    fun resolveNearestYearForMonth(monthName: String, referenceDate: Date = Date()): Int {
+        val norm = normalizeMonth(monthName).lowercase()
+        val refCal = Calendar.getInstance().apply { time = referenceDate }
+        val monthIdx = when {
+            norm.startsWith("ene") -> 0
+            norm.startsWith("feb") -> 1
+            norm.startsWith("mar") -> 2
+            norm.startsWith("abr") -> 3
+            norm.startsWith("may") -> 4
+            norm.startsWith("jun") -> 5
+            norm.startsWith("jul") -> 6
+            norm.startsWith("ago") -> 7
+            norm.startsWith("sep") -> 8
+            norm.startsWith("oct") -> 9
+            norm.startsWith("nov") -> 10
+            norm.startsWith("dic") -> 11
+            else -> refCal.get(Calendar.MONTH)
+        }
+        var year = refCal.get(Calendar.YEAR)
+        val diff = monthIdx - refCal.get(Calendar.MONTH)
+        if (diff > 6) year -= 1 else if (diff < -6) year += 1
+        return year
+    }
+
+    /**
      * Calculates the original purchase date for an MSI plan that already has previous installments.
      * For example, if registering an installment 12 of 24 in September 2026, the purchase happened 11 months earlier (October 2025).
      */

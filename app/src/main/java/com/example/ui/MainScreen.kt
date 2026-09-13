@@ -287,7 +287,7 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
                                     text = userProfile.initials,
-                                    color = if (selectedTab == 6) MaterialTheme.colorScheme.primary else Color.White,
+                                    color = if (selectedTab == 6) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
                                 )
@@ -427,7 +427,7 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                     expanded = isFabExpanded,
                     onClick = { showAddExpenseSheet = true },
                     containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                     shape = RoundedCornerShape(16.dp),
                     elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
                     icon = { Icon(Icons.Default.Add, contentDescription = "Registrar Gasto") },

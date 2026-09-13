@@ -69,6 +69,7 @@ fun RecommendationScreen(
     onOpenAddPayment: () -> Unit,
     onSelectCardForStatement: (Long) -> Unit
 ) {
+    val isDark = isSystemInDarkTheme()
     val isPrivate = LocalPrivacyMode.current
     val currencyFormat = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
     // Requisito 2: Las tarjetas departamentales nunca deben mostrarse como la principal recomendación
@@ -167,15 +168,16 @@ fun RecommendationScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
+                        val fullyPaidText = if (isDark) Color(0xFF81C784) else Color(0xFF2E6C38)
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (statementSummary.isFullyPaid) Color(0xFF2E6C38).copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer
+                            color = if (statementSummary.isFullyPaid) fullyPaidText.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
                                 text = if (statementSummary.isFullyPaid) "Al corriente" else "Por liquidar",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (statementSummary.isFullyPaid) Color(0xFF2E6C38) else MaterialTheme.colorScheme.primary,
+                                color = if (statementSummary.isFullyPaid) fullyPaidText else MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }

@@ -196,7 +196,7 @@ fun MsiTrackerScreen(
                         ) {
                             Text(
                                 text = "${activeMsiList.size} activos • ${completedMsiList.size} fin.",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
@@ -351,7 +351,7 @@ fun MsiTrackerScreen(
                                         text = "${activeMsiList.size}",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (selectedTab == 0) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = if (selectedTab == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
@@ -382,7 +382,7 @@ fun MsiTrackerScreen(
                                         text = "${completedMsiList.size}",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (selectedTab == 1) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = if (selectedTab == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }

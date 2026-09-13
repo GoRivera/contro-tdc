@@ -231,8 +231,8 @@ fun StatementsScreen(
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = Color.White,
-                            selectedLeadingIconColor = Color.White,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
                             containerColor = MaterialTheme.colorScheme.surfaceVariant,
                             labelColor = MaterialTheme.colorScheme.onSurface
                         ),
@@ -272,8 +272,8 @@ fun StatementsScreen(
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.secondary,
-                            selectedLabelColor = Color.White,
-                            selectedLeadingIconColor = Color.White,
+                            selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
+                            selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondary,
                             containerColor = MaterialTheme.colorScheme.surfaceVariant,
                             labelColor = MaterialTheme.colorScheme.onSurface
                         ),
@@ -647,7 +647,7 @@ fun StatementsScreen(
                         ) {
                             Text(
                                 text = if (isPeriodPaid) "LIQUIDADO" else "POR PAGAR",
-                                color = Color.White,
+                                color = if (isPeriodPaid) MaterialTheme.colorScheme.onPrimary else Color.White,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)

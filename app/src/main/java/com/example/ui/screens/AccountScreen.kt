@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -106,6 +107,8 @@ fun AccountScreen(
     onLaunchGoogleSignIn: () -> Unit = {},
     onClose: () -> Unit
 ) {
+    val isDark = isSystemInDarkTheme()
+
     // Corrección del bug de "se pierde lo que estabas escribiendo": antes, remember(userProfile) volvía
     // a inicializar estos campos cada vez que userProfile cambiaba (p. ej. tras un inicio de sesión con
     // Google o una restauración desde la nube), aunque el usuario ya estuviera escribiendo algo distinto
@@ -193,7 +196,7 @@ fun AccountScreen(
                     ) {
                         Text(
                             text = userProfile.initials,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onPrimary,
                             fontWeight = FontWeight.Black,
                             fontSize = 28.sp
                         )
@@ -315,21 +318,22 @@ fun AccountScreen(
                     }
 
                     if (showSavedFeedback) {
+                        val savedFeedbackText = if (isDark) Color(0xFF81C784) else Color(0xFF2E6C38)
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFF2E6C38).copy(alpha = 0.12f),
-                            border = BorderStroke(1.dp, Color(0xFF2E6C38).copy(alpha = 0.3f)),
+                            color = savedFeedbackText.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, savedFeedbackText.copy(alpha = 0.3f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier.padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF2E6C38), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Check, contentDescription = null, tint = savedFeedbackText, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "¡Datos de cuenta guardados correctamente!",
-                                    color = Color(0xFF2E6C38),
+                                    color = savedFeedbackText,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -435,7 +439,7 @@ fun AccountScreen(
                             Icon(
                                 imageVector = if (firebaseUser != null) Icons.Default.CloudDone else Icons.Default.CloudSync,
                                 contentDescription = null,
-                                tint = if (firebaseUser != null) Color(0xFF2E6C38) else MaterialTheme.colorScheme.primary,
+                                tint = if (firebaseUser != null) (if (isDark) Color(0xFF81C784) else Color(0xFF2E6C38)) else MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
@@ -485,23 +489,24 @@ fun AccountScreen(
                             }
                         }
                         is SyncState.Success -> {
+                            val syncSuccessText = if (isDark) Color(0xFF81C784) else Color(0xFF2E6C38)
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF2E6C38).copy(alpha = 0.12f),
-                                border = BorderStroke(1.dp, Color(0xFF2E6C38).copy(alpha = 0.3f)),
+                                color = syncSuccessText.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, syncSuccessText.copy(alpha = 0.3f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
                                     modifier = Modifier.padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF2E6C38), modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = syncSuccessText, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = syncState.message,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF2E6C38)
+                                        color = syncSuccessText
                                     )
                                 }
                             }

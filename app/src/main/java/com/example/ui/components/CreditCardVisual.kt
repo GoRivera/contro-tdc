@@ -502,7 +502,7 @@ fun BankBrandLogo(bankName: String, isCompact: Boolean = false, modifier: Modifi
             bLower.contains("citibanamex") || bLower.contains("banamex") -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "citibanamex",
+                        text = "banamex",
                         color = Color.White,
                         fontSize = if (isCompact) 14.sp else 17.sp,
                         fontWeight = FontWeight.Black,
@@ -964,9 +964,9 @@ fun BankBrandBadge(bankName: String, modifier: Modifier = Modifier.size(34.dp)) 
                     Box(contentAlignment = Alignment.Center) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "citi",
+                                text = "banamex",
                                 color = Color.White,
-                                fontSize = 11.sp,
+                                fontSize = 8.sp,
                                 fontWeight = FontWeight.Black
                             )
                             Box(

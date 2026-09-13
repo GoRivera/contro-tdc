@@ -246,11 +246,34 @@ fun QuickAddExpenseSheet(
         } else null
     }
 
-    // Si la fecha seleccionada corresponde a una compra de meses anteriores, autocompletar la cuota y avance
-    LaunchedEffect(autoMsiTimeline?.currentInstallment) {
-        if (autoMsiTimeline != null && autoMsiTimeline.currentInstallment > 1 && !isExistingMsiWithAdvance) {
+    // Recuerda el último valor que la app auto-sugirió, para distinguirlo de un valor que el
+    // usuario haya tecleado/ajustado a mano (stepper, chips o campo de texto).
+    var lastAutoSuggestedInstallment by remember { mutableStateOf<Int?>(null) }
+
+    // Si la fecha seleccionada corresponde a una compra de meses anteriores, autocompletar la cuota y
+    // el avance de forma automática. Antes esto solo se ejecutaba UNA vez (por el "!isExistingMsiWithAdvance"
+    // que se ponía en true y nunca regresaba a false): si el usuario capturaba primero la fecha y
+    // luego cambiaba el plazo en meses (p. ej. de los 12 meses por defecto a 24), la cuota calculada
+    // se quedaba congelada en el valor calculado con 12 meses — dando la impresión de que "no se
+    // toman en cuenta" las mensualidades que superan las 12. Ahora se recalcula cada vez que cambian
+    // la fecha, la tarjeta o el plazo, siempre que el usuario no haya tomado control manual del valor.
+    LaunchedEffect(autoMsiTimeline?.currentInstallment, msiTotalMonths) {
+        val suggested = autoMsiTimeline?.currentInstallment
+        val currentText = msiCurrentInstallmentText.toIntOrNull()
+        val userTookManualControl = isExistingMsiWithAdvance &&
+            currentText != null &&
+            currentText != lastAutoSuggestedInstallment
+
+        if (suggested != null && suggested > 1 && !userTookManualControl) {
             isExistingMsiWithAdvance = true
-            msiCurrentInstallmentText = autoMsiTimeline.currentInstallment.toString()
+            msiCurrentInstallmentText = suggested.toString()
+            lastAutoSuggestedInstallment = suggested
+        } else if (suggested != null && suggested <= 1 && !userTookManualControl && lastAutoSuggestedInstallment != null) {
+            // La fecha/plazo ya no corresponden a una compra "atrasada": es una compra del ciclo
+            // actual, así que regresamos automáticamente a "Nueva" en vez de dejar un avance obsoleto.
+            isExistingMsiWithAdvance = false
+            msiCurrentInstallmentText = "1"
+            lastAutoSuggestedInstallment = null
         }
     }
 
@@ -606,7 +629,7 @@ fun QuickAddExpenseSheet(
                                     ) {
                                         Text(
                                             text = if (userOverriddenMonth == null) "AUTOMÁTICO" else "EDITADO",
-                                            color = Color.White,
+                                            color = if (userOverriddenMonth == null) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondary,
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -668,7 +691,7 @@ fun QuickAddExpenseSheet(
                                     label = { Text(monthName, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                        selectedLabelColor = Color.White
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                                     ),
                                     modifier = Modifier.testTag("month_select_$monthName")
                                 )
@@ -1672,10 +1695,14 @@ fun QuickAddExpenseSheet(
                     onClick = {
                         if (canSave) {
                             val effectiveExpenseDateMillis = if (isMsi && isExistingMsiWithAdvance && autoEstimateOriginalDate) {
-                                val cal = Calendar.getInstance()
+                                // Corrección: antes se asumía siempre "el año en curso" para el mes de
+                                // corte activo, lo cual fallaba justo en el cruce de año (p. ej. hoy
+                                // enero de 2026 y el corte activo es "Diciembre", que en realidad es
+                                // diciembre de 2025, no de 2026). Ahora se resuelve el año más cercano
+                                // a hoy para ese nombre de mes.
                                 CreditCardCalculator.calculateOriginalPurchaseDate(
                                     statementMonthName = activePaymentMonth,
-                                    statementYear = cal.get(Calendar.YEAR),
+                                    statementYear = CreditCardCalculator.resolveNearestYearForMonth(activePaymentMonth),
                                     currentInstallment = effectiveCurrentInstallment
                                 )
                             } else {

@@ -427,7 +427,7 @@ fun MsiAmortizationDialog(
                                                 text = "ACTUAL",
                                                 fontSize = 9.sp,
                                                 fontWeight = FontWeight.ExtraBold,
-                                                color = Color.White,
+                                                color = MaterialTheme.colorScheme.onPrimary,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
                                         }

@@ -125,6 +125,7 @@ fun FuelScreen(
         dateMillis: Long
     ) -> Unit = { _, _, _, _, _, _, _, _, _, _, _ -> }
 ) {
+    val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
     val currencyFormat = rememberPrivacyCurrencyFormat()
     val dateFormat = SimpleDateFormat("d 'de' MMMM, yyyy", Locale("es", "MX"))
@@ -583,6 +584,8 @@ fun FuelScreen(
             items(filteredEntries, key = { it.id }) { entry ->
                 val card = cards.firstOrNull { it.id == entry.cardId }
                 val isPremium = entry.fuelType.contains("Premium", ignoreCase = true) || entry.fuelType.contains("Roja", ignoreCase = true)
+                val fuelPremiumColor = if (isDark) Color(0xFFE57373) else Color(0xFFD32F2F)
+                val fuelRegularColor = if (isDark) Color(0xFF81C784) else Color(0xFF2E7D32)
 
                 Card(
                     shape = RoundedCornerShape(16.dp),
@@ -612,13 +615,13 @@ fun FuelScreen(
                                 modifier = Modifier
                                     .size(42.dp)
                                     .clip(CircleShape)
-                                    .background(if (isPremium) Color(0xFFD32F2F).copy(alpha = 0.12f) else Color(0xFF2E7D32).copy(alpha = 0.12f)),
+                                    .background(if (isPremium) fuelPremiumColor.copy(alpha = 0.12f) else fuelRegularColor.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.LocalGasStation,
                                     contentDescription = null,
-                                    tint = if (isPremium) Color(0xFFD32F2F) else Color(0xFF2E7D32),
+                                    tint = if (isPremium) fuelPremiumColor else fuelRegularColor,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -672,18 +675,18 @@ fun FuelScreen(
                                     text = "${currencyFormat.format(entry.pricePerLiter)} / L",
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isPremium) Color(0xFFD32F2F) else Color(0xFF2E7D32)
+                                    color = if (isPremium) fuelPremiumColor else fuelRegularColor
                                 )
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = if (isPremium) Color(0xFFD32F2F).copy(alpha = 0.15f) else Color(0xFF2E7D32).copy(alpha = 0.15f),
+                                    color = if (isPremium) fuelPremiumColor.copy(alpha = 0.15f) else fuelRegularColor.copy(alpha = 0.15f),
                                     modifier = Modifier.padding(top = 2.dp)
                                 ) {
                                     Text(
                                         text = if (isPremium) "Premium (Roja)" else "Regular (Verde)",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isPremium) Color(0xFFD32F2F) else Color(0xFF2E7D32),
+                                        color = if (isPremium) fuelPremiumColor else fuelRegularColor,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
@@ -717,6 +720,8 @@ fun FuelScreen(
     selectedEntryForDetail?.let { entry ->
         val card = cards.firstOrNull { it.id == entry.cardId }
         val isPremium = entry.fuelType.contains("Premium", ignoreCase = true) || entry.fuelType.contains("Roja", ignoreCase = true)
+        val fuelPremiumColor = if (isDark) Color(0xFFE57373) else Color(0xFFD32F2F)
+        val fuelRegularColor = if (isDark) Color(0xFF81C784) else Color(0xFF2E7D32)
 
         AlertDialog(
             onDismissRequest = { selectedEntryForDetail = null },
@@ -725,13 +730,13 @@ fun FuelScreen(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(if (isPremium) Color(0xFFD32F2F).copy(alpha = 0.15f) else Color(0xFF2E7D32).copy(alpha = 0.15f)),
+                        .background(if (isPremium) fuelPremiumColor.copy(alpha = 0.15f) else fuelRegularColor.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.LocalGasStation,
                         contentDescription = null,
-                        tint = if (isPremium) Color(0xFFD32F2F) else Color(0xFF2E7D32),
+                        tint = if (isPremium) fuelPremiumColor else fuelRegularColor,
                         modifier = Modifier.size(26.dp)
                     )
                 }
@@ -775,7 +780,7 @@ fun FuelScreen(
                                     "${currencyFormat.format(entry.pricePerLiter)} / L",
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isPremium) Color(0xFFD32F2F) else Color(0xFF2E7D32)
+                                    color = if (isPremium) fuelPremiumColor else fuelRegularColor
                                 )
                             }
                         }
@@ -785,7 +790,7 @@ fun FuelScreen(
                     DetailRow(
                         label = "Tipo de combustible",
                         value = entry.fuelType,
-                        color = if (isPremium) Color(0xFFD32F2F) else Color(0xFF2E7D32)
+                        color = if (isPremium) fuelPremiumColor else fuelRegularColor
                     )
                     DetailRow(
                         label = "Litros cargados (5 decimales)",
@@ -1033,7 +1038,7 @@ fun AddFuelEntryDialog(
                 Icon(
                     imageVector = Icons.Default.LocalGasStation,
                     contentDescription = null,
-                    tint = if (selectedFuelType.contains("Roja")) Color(0xFFD32F2F) else Color(0xFF2E7D32),
+                    tint = if (selectedFuelType.contains("Roja")) (if (isDark) Color(0xFFE57373) else Color(0xFFD32F2F)) else (if (isDark) Color(0xFF81C784) else Color(0xFF2E7D32)),
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -1266,12 +1271,15 @@ fun AddFuelEntryDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            val fuelRedColor = if (isDark) Color(0xFFE57373) else Color(0xFFD32F2F)
+                            val fuelGreenColor = if (isDark) Color(0xFF81C784) else Color(0xFF2E7D32)
+
                             // Premium (Roja)
                             val isRedSelected = selectedFuelType == "Gasolina Premium (Roja)"
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isRedSelected) Color(0xFFD32F2F).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                border = BorderStroke(1.5.dp, if (isRedSelected) Color(0xFFD32F2F) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                color = if (isRedSelected) fuelRedColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                border = BorderStroke(1.5.dp, if (isRedSelected) fuelRedColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { selectedFuelType = "Gasolina Premium (Roja)" }
@@ -1284,14 +1292,14 @@ fun AddFuelEntryDialog(
                                     Box(
                                         modifier = Modifier
                                             .size(10.dp)
-                                            .background(Color(0xFFD32F2F), CircleShape)
+                                            .background(fuelRedColor, CircleShape)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Premium (Roja)",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isRedSelected) Color(0xFFD32F2F) else MaterialTheme.colorScheme.onSurface
+                                        color = if (isRedSelected) fuelRedColor else MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
@@ -1300,8 +1308,8 @@ fun AddFuelEntryDialog(
                             val isGreenSelected = selectedFuelType == "Gasolina Regular (Verde)"
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isGreenSelected) Color(0xFF2E7D32).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                border = BorderStroke(1.5.dp, if (isGreenSelected) Color(0xFF2E7D32) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                color = if (isGreenSelected) fuelGreenColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                border = BorderStroke(1.5.dp, if (isGreenSelected) fuelGreenColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { selectedFuelType = "Gasolina Regular (Verde)" }
@@ -1314,14 +1322,14 @@ fun AddFuelEntryDialog(
                                     Box(
                                         modifier = Modifier
                                             .size(10.dp)
-                                            .background(Color(0xFF2E7D32), CircleShape)
+                                            .background(fuelGreenColor, CircleShape)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Regular (Verde)",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isGreenSelected) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurface
+                                        color = if (isGreenSelected) fuelGreenColor else MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }

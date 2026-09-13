@@ -198,6 +198,57 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                     ensureSubscriptionDataForMonth(ym, subs)
                 }
         }
+
+        // Los MSI no avanzaban de cuota solos: msiCurrentInstallment y targetStatementMonth se
+        // quedaban congelados en lo que se capturó al registrar el gasto, porque la única función
+        // que los avanzaba (advanceMsiInstallment) no estaba conectada a ningún botón ni proceso
+        // automático — el usuario tenía que editar el gasto a mano cada vez que pasaba un corte.
+        // Ahora, cada vez que se cargan las tarjetas o los gastos (p. ej. al abrir la app), se
+        // resincroniza automáticamente cada MSI activo con la fecha real de hoy: si ya pasó el
+        // corte de la tarjeta correspondiente una o más veces desde el último registro, la cuota
+        // actual avanza sola (incluso varios meses de golpe si la app no se abrió en un tiempo).
+        viewModelScope.launch {
+            combine(allExpenses, allCards) { expenses, cards -> expenses to cards }
+                .collect { (expenses, cards) ->
+                    resyncMsiInstallmentsToToday(expenses, cards)
+                }
+        }
+    }
+
+    /**
+     * Recalcula, para cada gasto MSI activo, la cuota que le corresponde HOY según su fecha real de
+     * compra y el día de corte de su tarjeta, y avanza msiCurrentInstallment/targetStatementMonth
+     * automáticamente si el cálculo indica que ya se debieron cobrar más mensualidades de las
+     * registradas. Nunca retrocede una cuota (respeta ajustes manuales hacia adelante) ni la avanza
+     * más allá del plazo total.
+     */
+    private suspend fun resyncMsiInstallmentsToToday(expenses: List<Expense>, cards: List<CreditCard>) {
+        val cardMap = cards.associateBy { it.id }
+        for (exp in expenses) {
+            if (!exp.isMsi) continue
+            val card = cardMap[exp.cardId] ?: continue
+            val totalMonths = exp.msiTotalMonths.coerceAtLeast(1)
+            if (exp.msiCurrentInstallment >= totalMonths) continue
+
+            val timeline = CreditCardCalculator.calculateMsiAutoTimeline(
+                purchaseDateMillis = exp.dateMillis,
+                cardCutoffDay = card.cutoffDay,
+                totalMonths = totalMonths
+            )
+            if (timeline.currentInstallment > exp.msiCurrentInstallment) {
+                val newTargetStatementMonth = CreditCardCalculator.calculateStatementMonthForInstallment(
+                    purchaseDateMillis = exp.dateMillis,
+                    cardCutoffDay = card.cutoffDay,
+                    installmentNumber = timeline.currentInstallment
+                )
+                repository.updateExpense(
+                    exp.copy(
+                        msiCurrentInstallment = timeline.currentInstallment,
+                        targetStatementMonth = newTargetStatementMonth
+                    )
+                )
+            }
+        }
     }
 
     /**
