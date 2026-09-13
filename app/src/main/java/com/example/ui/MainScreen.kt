@@ -3,6 +3,7 @@ package com.example.ui
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -34,12 +35,15 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Visibility
@@ -49,6 +53,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -95,6 +100,7 @@ import com.example.ui.screens.CardsManagementScreen
 import com.example.ui.screens.FuelScreen
 import com.example.ui.screens.MsiTrackerScreen
 import com.example.ui.screens.RecommendationScreen
+import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.ServicesScreen
 import com.example.ui.screens.SpendingTrendsScreen
 import com.example.ui.screens.StatementsScreen
@@ -117,6 +123,7 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
     var showAddExpenseSheet by remember { mutableStateOf(false) }
     var showAddPaymentSheet by remember { mutableStateOf(false) }
     var showExitConfirmDialog by remember { mutableStateOf(false) }
+    var showFabMenu by remember { mutableStateOf(false) }
 
     // Acceso directo de la app ("mantener presionado" el ícono): abre directo el registro
     // correspondiente en cuanto se lanza la actividad desde ese shortcut.
@@ -284,6 +291,26 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                                     imageVector = Icons.Default.Bolt,
                                     contentDescription = "Servicios: agua, luz y gas",
                                     tint = if (selectedTab == 7) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        // Botón de Búsqueda global
+                        Surface(
+                            shape = CircleShape,
+                            color = if (selectedTab == 9) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable { selectedTab = 9 }
+                                .testTag("btn_top_search")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Buscar",
+                                    tint = if (selectedTab == 9) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -457,19 +484,66 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
             }
         },
         floatingActionButton = {
-            // El botón "Registrar gasto" se muestra flotante en Recomendador o Cuentas
+            // Menú de acciones rápidas flotante en Recomendador o Cuentas: antes solo abría
+            // "Registrar Gasto"; ahora se expande para elegir entre Gasto, Abono, Suscripción,
+            // Gasolina o Servicio en un solo lugar, en vez de tener que navegar primero a cada
+            // pestaña para encontrar su propio botón de agregar.
             if (selectedTab == 0 || selectedTab == 4) {
-                ExtendedFloatingActionButton(
-                    expanded = isFabExpanded,
-                    onClick = { showAddExpenseSheet = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
-                    icon = { Icon(Icons.Default.Add, contentDescription = "Registrar Gasto") },
-                    text = { Text("Registrar Gasto", fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.testTag("main_fab_add_expense")
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    AnimatedVisibility(visible = showFabMenu) {
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(bottom = 10.dp)
+                        ) {
+                            QuickActionFab(
+                                icon = Icons.Default.Bolt,
+                                label = "Servicio",
+                                onClick = { showFabMenu = false; selectedTab = 7 }
+                            )
+                            QuickActionFab(
+                                icon = Icons.Default.LocalGasStation,
+                                label = "Gasolina",
+                                onClick = { showFabMenu = false; selectedTab = 3 }
+                            )
+                            QuickActionFab(
+                                icon = Icons.Default.Subscriptions,
+                                label = "Suscripción",
+                                onClick = { showFabMenu = false; selectedTab = 2 }
+                            )
+                            QuickActionFab(
+                                icon = Icons.Default.Paid,
+                                label = "Abono",
+                                onClick = { showFabMenu = false; showAddPaymentSheet = true }
+                            )
+                            QuickActionFab(
+                                icon = Icons.Default.Add,
+                                label = "Gasto",
+                                onClick = { showFabMenu = false; showAddExpenseSheet = true }
+                            )
+                        }
+                    }
+
+                    ExtendedFloatingActionButton(
+                        expanded = isFabExpanded,
+                        onClick = {
+                            AppHaptics.light(haptic, isHapticsEnabled)
+                            showFabMenu = !showFabMenu
+                        },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+                        icon = {
+                            Icon(
+                                imageVector = if (showFabMenu) Icons.Default.Close else Icons.Default.Add,
+                                contentDescription = if (showFabMenu) "Cerrar menú" else "Registrar"
+                            )
+                        },
+                        text = { Text(if (showFabMenu) "Cerrar" else "Registrar", fontWeight = FontWeight.Bold) },
+                        modifier = Modifier.testTag("main_fab_add_expense")
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -699,6 +773,13 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
 
                 8 -> SpendingTrendsScreen(
                     expenses = allExpenses,
+                    onClose = { selectedTab = 0 }
+                )
+
+                9 -> SearchScreen(
+                    expenses = allExpenses,
+                    payments = allPayments,
+                    cards = cards,
                     onClose = { selectedTab = 0 }
                 )
             }
@@ -942,6 +1023,41 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
             shape = RoundedCornerShape(20.dp)
         )
     }
+        }
+    }
+}
+
+/**
+ * Mini-FAB con etiqueta a la izquierda, usado en el menú de acciones rápidas del FAB principal.
+ */
+@Composable
+private fun QuickActionFab(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 3.dp,
+            modifier = Modifier.padding(end = 10.dp)
+        ) {
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            )
+        }
+        SmallFloatingActionButton(
+            onClick = onClick,
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.testTag("fab_quick_${label.lowercase()}")
+        ) {
+            Icon(imageVector = icon, contentDescription = label)
         }
     }
 }
