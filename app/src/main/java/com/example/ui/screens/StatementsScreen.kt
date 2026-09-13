@@ -69,12 +69,14 @@ import com.example.domain.CreditCardCalculator
 import com.example.domain.StatementSummary
 import com.example.ui.components.ChartSlice
 import com.example.ui.components.SpendingDonutChart
+import com.example.ui.components.SwipeToDeleteRow
 import com.example.ui.util.rememberPrivacyCurrencyFormat
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun StatementsScreen(
     cards: List<CreditCard>,
@@ -1096,6 +1098,22 @@ fun StatementsScreen(
             } else {
                 items(displayExpenses) { exp ->
                     val card = cardMap[exp.cardId]
+                    // Deslizar para eliminar: respeta las mismas reglas que el botón de eliminar
+                    // (MSI con más de 60 días y suscripciones muestran su propio aviso en vez de
+                    // borrarse directo).
+                    val rowMsiAgeMillis = System.currentTimeMillis() - exp.dateMillis
+                    val rowIsMsiOver60Days = exp.isMsi && rowMsiAgeMillis > (60L * 24 * 60 * 60 * 1000)
+                    SwipeToDeleteRow(
+                        onRequestDelete = {
+                            if (rowIsMsiOver60Days) {
+                                showMsiBlockedDialog = exp
+                            } else if (exp.isSubscription) {
+                                showSubscriptionBlockedDialog = exp
+                            } else {
+                                expenseToDelete = exp
+                            }
+                        }
+                    ) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1216,6 +1234,7 @@ fun StatementsScreen(
                             }
                         }
                     }
+                    }
                 }
             }
         } else {
@@ -1252,6 +1271,7 @@ fun StatementsScreen(
             } else {
                 items(filteredPayments) { pay ->
                     val card = cardMap[pay.cardId]
+                    SwipeToDeleteRow(onRequestDelete = { paymentToDelete = pay }) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1317,6 +1337,7 @@ fun StatementsScreen(
                                 )
                             }
                         }
+                    }
                     }
                 }
             }
