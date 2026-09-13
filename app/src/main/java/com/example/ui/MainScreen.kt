@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -52,6 +53,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -124,6 +127,7 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
     var showAddPaymentSheet by remember { mutableStateOf(false) }
     var showExitConfirmDialog by remember { mutableStateOf(false) }
     var showFabMenu by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
 
     // Acceso directo de la app ("mantener presionado" el ícono): abre directo el registro
     // correspondiente en cuanto se lanza la actividad desde ese shortcut.
@@ -412,40 +416,55 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                         ),
                         modifier = Modifier.testTag("nav_msi")
                     )
-                    NavigationBarItem(
-                        selected = selectedTab == 2,
-                        onClick = {
-                            AppHaptics.light(haptic, isHapticsEnabled)
-                            selectedTab = 2
-                        },
-                        icon = { Icon(Icons.Default.Subscriptions, contentDescription = "Suscripciones") },
-                        label = { Text("Suscrip.", fontSize = 9.sp, fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                        ),
-                        modifier = Modifier.testTag("nav_subscriptions")
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 3,
-                        onClick = {
-                            AppHaptics.light(haptic, isHapticsEnabled)
-                            selectedTab = 3
-                        },
-                        icon = { Icon(Icons.Default.LocalGasStation, contentDescription = "Gasolina") },
-                        label = { Text("Gasolina", fontSize = 9.sp, fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                        ),
-                        modifier = Modifier.testTag("nav_fuel")
-                    )
+                    // "Más": agrupa Suscripciones y Gasolina en un menú desplegable en vez de
+                    // ocupar dos espacios fijos en la barra de navegación (antes eran 6 pestañas
+                    // siempre visibles; con esto quedan 5, más cómodo en pantallas de celular).
+                    // No cambia a qué pestaña navega cada una (siguen siendo selectedTab 2 y 3).
+                    Box {
+                        NavigationBarItem(
+                            selected = selectedTab == 2 || selectedTab == 3,
+                            onClick = {
+                                AppHaptics.light(haptic, isHapticsEnabled)
+                                showMoreMenu = true
+                            },
+                            icon = { Icon(Icons.Default.MoreHoriz, contentDescription = "Más") },
+                            label = {
+                                Text(
+                                    "Más",
+                                    fontSize = 9.sp,
+                                    fontWeight = if (selectedTab == 2 || selectedTab == 3) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            modifier = Modifier.testTag("nav_more")
+                        )
+                        DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Suscripciones") },
+                                leadingIcon = { Icon(Icons.Default.Subscriptions, contentDescription = null) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    selectedTab = 2
+                                },
+                                modifier = Modifier.testTag("nav_subscriptions")
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Gasolina") },
+                                leadingIcon = { Icon(Icons.Default.LocalGasStation, contentDescription = null) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    selectedTab = 3
+                                },
+                                modifier = Modifier.testTag("nav_fuel")
+                            )
+                        }
+                    }
                     NavigationBarItem(
                         selected = selectedTab == 4,
                         onClick = {
