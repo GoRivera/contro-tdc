@@ -19,3 +19,24 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# --- Reglas propias del proyecto (Control TDC) ---
+
+# Modelos de datos (entidades de Room, sincronizados manualmente con Firestore mediante mapas de
+# campos por nombre en CloudSyncManager). Se conservan nombres y campos para que la sincronización
+# con la nube no se rompa si R8 renombra u ofusca estas clases.
+-keep class com.example.data.model.** { *; }
+-keepclassmembers class com.example.data.model.** { *; }
+
+# Room genera sus propios DAOs/Database en tiempo de compilación; se conservan por seguridad.
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-dontwarn androidx.room.paging.**
+
+# Firebase / Google Play Services ya incluyen sus propias reglas de consumidor, pero se agrega un
+# resguardo explícito para Auth/Firestore/AppCheck, usados directamente en CloudSyncManager y
+# GoogleAuthManager.
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.**

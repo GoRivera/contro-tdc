@@ -45,7 +45,11 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      // Antes deshabilitado (isMinifyEnabled = false): la app nunca ofuscaba/reducía su código en
+      // release. Se habilita con reglas explícitas en proguard-rules.pro para los modelos de datos
+      // y Firebase, que son las clases con más riesgo de romperse con la ofuscación por defecto.
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }

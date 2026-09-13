@@ -131,55 +131,36 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
     // Listas personalizables de conceptos sugeridos y personas/beneficiarios: antes vivían solo como
     // estado local de la pantalla de registrar gasto (remember), por lo que se reiniciaban a los
     // valores por defecto cada vez que se cerraba y volvía a abrir el formulario, perdiendo cualquier
-    // nombre o concepto que el usuario hubiera agregado o quitado. Ahora se guardan en SharedPreferences.
-    private fun loadStringList(key: String, default: List<String>): List<String> {
-        val raw = prefs.getString(key, null) ?: return default
-        val list = raw.split("||").map { it.trim() }.filter { it.isNotBlank() }
-        return if (list.isEmpty()) default else list
-    }
-
-    private val defaultQuickConcepts = listOf(
-        "Gasolina", "Despensa Walmart", "Amazon", "TotalPlay", "CFE", "Mercado Pago", "Aurrerá", "Restaurante"
+    // nombre o concepto que el usuario hubiera agregado o quitado. Ahora se guardan en SharedPreferences
+    // a través de PersistedStringListPref, que centraliza el patrón de guardar/cargar una lista.
+    private val quickConceptsPref = PersistedStringListPref(
+        prefs, "quick_concepts",
+        listOf("Gasolina", "Despensa Walmart", "Amazon", "TotalPlay", "CFE", "Mercado Pago", "Aurrerá", "Restaurante")
     )
-    private val _quickConcepts = MutableStateFlow(loadStringList("quick_concepts", defaultQuickConcepts))
-    val quickConcepts: StateFlow<List<String>> = _quickConcepts.asStateFlow()
+    val quickConcepts: StateFlow<List<String>> = quickConceptsPref.state
+    fun updateQuickConcepts(concepts: List<String>) = quickConceptsPref.update(concepts)
 
-    fun updateQuickConcepts(concepts: List<String>) {
-        val clean = concepts.map { it.trim() }.filter { it.isNotBlank() }.distinct()
-        prefs.edit().putString("quick_concepts", clean.joinToString("||")).apply()
-        _quickConcepts.value = clean
-    }
-
-    private val defaultPeopleList = listOf("Personal", "Familiar", "Pareja", "Hijos", "Trabajo", "Amigo")
-    private val _peopleList = MutableStateFlow(loadStringList("people_list", defaultPeopleList))
-    val peopleList: StateFlow<List<String>> = _peopleList.asStateFlow()
-
-    fun updatePeopleList(people: List<String>) {
-        val clean = people.map { it.trim() }.filter { it.isNotBlank() }.distinct()
-        prefs.edit().putString("people_list", clean.joinToString("||")).apply()
-        _peopleList.value = clean
-    }
+    private val peopleListPref = PersistedStringListPref(
+        prefs, "people_list",
+        listOf("Personal", "Familiar", "Pareja", "Hijos", "Trabajo", "Amigo")
+    )
+    val peopleList: StateFlow<List<String>> = peopleListPref.state
+    fun updatePeopleList(people: List<String>) = peopleListPref.update(people)
 
     // Mismo caso para los abonos/pagos: conceptos sugeridos y personas/fuentes de pago.
-    private val defaultPaymentConcepts = listOf("Pago TDC", "Bonificación", "Devolución / Reembolso", "Abono Terceros", "Abono Familiar")
-    private val _paymentConcepts = MutableStateFlow(loadStringList("payment_concepts", defaultPaymentConcepts))
-    val paymentConcepts: StateFlow<List<String>> = _paymentConcepts.asStateFlow()
+    private val paymentConceptsPref = PersistedStringListPref(
+        prefs, "payment_concepts",
+        listOf("Pago TDC", "Bonificación", "Devolución / Reembolso", "Abono Terceros", "Abono Familiar")
+    )
+    val paymentConcepts: StateFlow<List<String>> = paymentConceptsPref.state
+    fun updatePaymentConcepts(concepts: List<String>) = paymentConceptsPref.update(concepts)
 
-    fun updatePaymentConcepts(concepts: List<String>) {
-        val clean = concepts.map { it.trim() }.filter { it.isNotBlank() }.distinct()
-        prefs.edit().putString("payment_concepts", clean.joinToString("||")).apply()
-        _paymentConcepts.value = clean
-    }
-
-    private val defaultPayersList = listOf("Personal", "Familiar", "Pareja", "Banco", "Empresa")
-    private val _payersList = MutableStateFlow(loadStringList("payers_list", defaultPayersList))
-    val payersList: StateFlow<List<String>> = _payersList.asStateFlow()
-
-    fun updatePayersList(payers: List<String>) {
-        val clean = payers.map { it.trim() }.filter { it.isNotBlank() }.distinct()
-        prefs.edit().putString("payers_list", clean.joinToString("||")).apply()
-        _payersList.value = clean
-    }
+    private val payersListPref = PersistedStringListPref(
+        prefs, "payers_list",
+        listOf("Personal", "Familiar", "Pareja", "Banco", "Empresa")
+    )
+    val payersList: StateFlow<List<String>> = payersListPref.state
+    fun updatePayersList(payers: List<String>) = payersListPref.update(payers)
 
     private val _isAppLockEnabled = MutableStateFlow(prefs.getBoolean("app_lock_enabled", false))
     val isAppLockEnabled: StateFlow<Boolean> = _isAppLockEnabled.asStateFlow()
@@ -1227,6 +1208,34 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             googleAuthManager.signOut()
             cloudSyncManager.signOut()
+        }
+    }
+}
+
+/**
+ * Lista de strings editable por el usuario (conceptos sugeridos, personas/beneficiarios, etc.) que se
+ * persiste en SharedPreferences para sobrevivir a cerrar y volver a abrir el formulario donde se usa.
+ * Centraliza el patrón de guardar/cargar que antes se repetía casi idéntico para cada lista.
+ */
+private class PersistedStringListPref(
+    private val prefs: android.content.SharedPreferences,
+    private val key: String,
+    default: List<String>
+) {
+    private val _state = MutableStateFlow(load(prefs, key, default))
+    val state: StateFlow<List<String>> = _state.asStateFlow()
+
+    fun update(list: List<String>) {
+        val clean = list.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        prefs.edit().putString(key, clean.joinToString("||")).apply()
+        _state.value = clean
+    }
+
+    companion object {
+        private fun load(prefs: android.content.SharedPreferences, key: String, default: List<String>): List<String> {
+            val raw = prefs.getString(key, null) ?: return default
+            val list = raw.split("||").map { it.trim() }.filter { it.isNotBlank() }
+            return if (list.isEmpty()) default else list
         }
     }
 }

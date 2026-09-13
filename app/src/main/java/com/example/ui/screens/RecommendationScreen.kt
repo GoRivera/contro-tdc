@@ -67,7 +67,8 @@ fun RecommendationScreen(
     statementSummary: StatementSummary,
     onOpenAddExpense: () -> Unit,
     onOpenAddPayment: () -> Unit,
-    onSelectCardForStatement: (Long) -> Unit
+    onSelectCardForStatement: (Long) -> Unit,
+    onAddCard: () -> Unit = {}
 ) {
     val isDark = isSystemInDarkTheme()
     val isPrivate = LocalPrivacyMode.current
@@ -137,6 +138,52 @@ fun RecommendationScreen(
             }
 
             Spacer(modifier = Modifier.height(14.dp))
+
+            // Estado vacío de primer uso: sin tarjetas registradas todavía
+            if (recommendations.isEmpty()) {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth().testTag("home_empty_state_no_cards")
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CreditCard,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Agrega tu primera tarjeta",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Registra una tarjeta de crédito para empezar a recibir recomendaciones y llevar el control de tus gastos.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Button(
+                            onClick = onAddCard,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Agregar Tarjeta", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+            }
 
             // Resumen activo del periodo de facturación
             if (statementSummary.totalCharges > 0.0) {

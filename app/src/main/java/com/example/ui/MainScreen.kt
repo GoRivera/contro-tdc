@@ -470,7 +470,8 @@ fun MainScreen(viewModel: CreditCardViewModel) {
                     onSelectCardForStatement = { cardId ->
                         viewModel.setSelectedCard(cardId)
                         selectedTab = 4
-                    }
+                    },
+                    onAddCard = { selectedTab = 5 }
                 )
 
                 1 -> MsiTrackerScreen(
