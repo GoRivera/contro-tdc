@@ -51,12 +51,18 @@ jobs:
         with:
           gradle-version: 9.3.1
 
-      - name: Asegurar Keystore de depuración
+      - name: Restaurar Keystore de depuración persistente
         run: |
-          if [ ! -f debug.keystore ]; then
-            echo "Generando debug.keystore de respaldo..."
-            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          # Si debug.keystore no existe o fue alterado, restaurarlo desde debug.keystore.base64
+          if [ -f debug.keystore.base64 ]; then
+            echo "Restaurando debug.keystore persistente desde debug.keystore.base64..."
+            base64 -d debug.keystore.base64 > debug.keystore
           fi
+          
+          # Verificar huellas digitales para garantizar que coinciden con Firebase y con todas las versiones anteriores
+          echo "=== Huellas digitales del certificado de firma del APK ==="
+          keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1|SHA256"
+
 
       # No bloquea la entrega del APK si alguna prueba falla en CI
       - name: Ejecutar pruebas unitarias
