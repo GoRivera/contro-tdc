@@ -44,7 +44,7 @@ android {
           val decoded = Base64.getDecoder().decode(b64File.readText().trim())
           ksFile.writeBytes(decoded)
         } catch (e: Exception) {
-          logger.warn("No se pudo decodificar debug.keystore.base64: ${e.message}")
+          println("Aviso: No se pudo decodificar debug.keystore.base64: ${e.message}")
         }
       }
       storeFile = ksFile

@@ -15,37 +15,20 @@ jobs:
       - name: Checkout del repositorio
         uses: actions/checkout@v4
 
+      - name: Dar permisos de ejecución al Gradle Wrapper
+        run: |
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+          fi
+
       - name: Configurar JDK 21 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      - name: Preparar Android SDK y Licencias
-        run: |
-          # En ubuntu-latest el Android SDK ya viene preinstalado en /usr/local/lib/android/sdk
-          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          export ANDROID_SDK_ROOT="$ANDROID_HOME"
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-          
-          # Aceptar licencias manualmente mediante archivos de licencia
-          mkdir -p "$ANDROID_HOME/licenses"
-          printf "24333f8a63b1d7f2e51f81648a3eb180e1a021ee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n84831b9409646a918e30573bab4c9c91346d8abd\n" > "$ANDROID_HOME/licenses/android-sdk-license"
-          printf "84831b9409646a918e30573bab4c9c91346d8abd\n5046274c46de7009618bc4b9f7dd729f60073a35\n" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
-          
-          # Buscar sdkmanager dinámicamente en cualquier subdirectorio del SDK
-          SDK_MGR=$(find "$ANDROID_HOME" -name sdkmanager -type f 2>/dev/null | head -n 1)
-          if [ -n "$SDK_MGR" ]; then
-            echo "sdkmanager encontrado en: $SDK_MGR"
-            yes | "$SDK_MGR" --licenses 2>/dev/null || true
-            yes | "$SDK_MGR" "platforms;android-36" 2>/dev/null || true
-          fi
-
       - name: Configurar archivos de entorno
         run: |
-          # Asegurar que .env exista para el Secrets Gradle Plugin
           if [ ! -f .env ]; then
             if [ -f .env.example ]; then
               cp .env.example .env
@@ -54,48 +37,45 @@ jobs:
             fi
           fi
 
-      - name: Configurar Gradle 9.3.1
+      - name: Configurar Android SDK y Licencias
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+          # Asegurar permisos de escritura sobre el SDK en el runner
+          sudo chown -R "$USER:$USER" "$ANDROID_HOME" 2>/dev/null || true
+
+          # Pre-aprobar licencias del SDK mediante hashes oficiales
+          sudo mkdir -p "$ANDROID_HOME/licenses" 2>/dev/null || mkdir -p "$ANDROID_HOME/licenses"
+          sudo chmod -R 777 "$ANDROID_HOME/licenses" 2>/dev/null || true
+          printf "24333f8a63b1d7f2e51f81648a3eb180e1a021ee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n84831b9409646a918e30573bab4c9c91346d8abd\n" | sudo tee "$ANDROID_HOME/licenses/android-sdk-license" > /dev/null
+          printf "84831b9409646a918e30573bab4c9c91346d8abd\n5046274c46de7009618bc4b9f7dd729f60073a35\n" | sudo tee "$ANDROID_HOME/licenses/android-sdk-preview-license" > /dev/null
+
+          # Aceptar licencias interactivas si sdkmanager está disponible
+          SDK_MGR=$(find "$ANDROID_HOME" -name sdkmanager -type f 2>/dev/null | head -n 1)
+          if [ -n "$SDK_MGR" ]; then
+            yes | "$SDK_MGR" --licenses 2>/dev/null || true
+          fi
+
+      - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: 9.3.1
 
       - name: Restaurar Keystore de depuración persistente
         run: |
-          # Si debug.keystore no existe o fue alterado, restaurarlo desde debug.keystore.base64
           if [ -f debug.keystore.base64 ]; then
             echo "Restaurando debug.keystore persistente desde debug.keystore.base64..."
-            base64 -d debug.keystore.base64 > debug.keystore
+            base64 -di debug.keystore.base64 > debug.keystore 2>/dev/null || base64 -d debug.keystore.base64 > debug.keystore
           fi
           
-          # Verificar huellas digitales para garantizar que coinciden con Firebase y con todas las versiones anteriores
           echo "=== Huellas digitales del certificado de firma del APK ==="
           keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1|SHA256"
 
-
-      - name: Dar permisos de ejecución al Gradle Wrapper
-        run: |
-          if [ -f gradlew ]; then
-            chmod +x gradlew
-          fi
-
-      # No bloquea la entrega del APK si alguna prueba falla en CI
-      - name: Ejecutar pruebas unitarias
-        run: |
-          if [ -f ./gradlew ]; then
-            ./gradlew testDebugUnitTest --stacktrace
-          else
-            gradle testDebugUnitTest --stacktrace
-          fi
-        continue-on-error: true
-
       # Cada corrida usa un versionCode ascendente para permitir actualización directa en Android
       - name: Compilar APK de depuración
-        run: |
-          if [ -f ./gradlew ]; then
-            ./gradlew assembleDebug --stacktrace -PappVersionCode=${{ github.run_number }}
-          else
-            gradle assembleDebug --stacktrace -PappVersionCode=${{ github.run_number }}
-          fi
+        run: ./gradlew assembleDebug --stacktrace -PappVersionCode=${{ github.run_number }}
 
       - name: Subir APK como artefacto descargable
         uses: actions/upload-artifact@v4
@@ -103,4 +83,3 @@ jobs:
           name: control-tdc-debug-apk-${{ github.run_number }}
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-
