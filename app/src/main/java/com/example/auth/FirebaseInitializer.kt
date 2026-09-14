@@ -22,6 +22,8 @@ object FirebaseInitializer {
     const val GCM_SENDER_ID = "233930565744"
     const val PACKAGE_NAME = "com.aistudio.creditcards.qwvpkz"
     const val DEBUG_SHA1 = "88:6A:7E:94:23:8B:07:89:71:ED:3A:D9:D1:D5:23:DD:75:DC:1C:9B"
+    const val DEBUG_SHA256 = "78:23:19:40:0B:40:59:1C:FB:F6:9C:AB:09:12:5C:D7:2A:B4:22:17:52:DD:F1:FB:BB:EC:00:5F:FE:7B:6E:E3"
+    const val LEGACY_SHA1 = "CA:BD:35:1D:5E:FD:D9:61:55:31:8D:97:D3:19:B8:54:1B:82:EE:BE"
 
     fun ensureInitialized(context: Context): Boolean {
         return try {

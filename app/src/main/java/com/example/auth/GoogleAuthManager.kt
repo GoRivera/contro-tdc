@@ -228,9 +228,31 @@ class GoogleAuthManager(private val context: Context) {
         } catch (e: GetCredentialCancellationException) {
             Log.d("GoogleAuthManager", "Inicio de sesión cancelado por el usuario.")
             Result.failure(Exception("Inicio de sesión cancelado."))
+        } catch (e: androidx.credentials.exceptions.NoCredentialException) {
+            Log.w("GoogleAuthManager", "No credentials available from Credential Manager", e)
+            Result.failure(
+                Exception(
+                    "No se encontraron credenciales de Google disponibles en este dispositivo o la firma SHA-1 en Firebase aún no se ha propagado.\n\n" +
+                    "• Si agregaste el SHA-1 recientemente en Firebase Console, espera 5-10 minutos a que Google sincronice los servidores de autenticación.\n" +
+                    "• Si tienes instalada una versión anterior de la app, conserva en Firebase tanto el SHA-1 nuevo como el anterior.\n" +
+                    "• Alternativa inmediata: Puedes iniciar sesión o crear cuenta usando la pestaña 'Correo y Contraseña' sin depender de Google Play Services."
+                )
+            )
         } catch (e: Exception) {
-            Log.e("GoogleAuthManager", "Error en inicio de sesión con Google", e)
-            Result.failure(e)
+            val msg = e.localizedMessage ?: ""
+            if (msg.contains("No credentials available", ignoreCase = true) || msg.contains("NoCredential", ignoreCase = true)) {
+                Result.failure(
+                    Exception(
+                        "No se encontraron credenciales de Google disponibles o la firma en Firebase aún no se propaga.\n\n" +
+                        "• Espera unos minutos tras registrar el SHA-1 en Firebase Console.\n" +
+                        "• Recuerda mantener registrados ambos SHA-1 (el nuevo y el anterior) para compatibilidad.\n" +
+                        "• Alternativa inmediata: Inicia sesión con la pestaña 'Correo y Contraseña'."
+                    )
+                )
+            } else {
+                Log.e("GoogleAuthManager", "Error en inicio de sesión con Google", e)
+                Result.failure(e)
+            }
         }
     }
 

@@ -640,21 +640,65 @@ fun AccountScreen(
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text("Proyecto: ${FirebaseInitializer.PROJECT_ID}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
                                     Text("Paquete: ${FirebaseInitializer.PACKAGE_NAME}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
-                                    Text("SHA-1 Debug:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("SHA-1 Actual (APK compilado):", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                     Text(FirebaseInitializer.DEBUG_SHA1, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Spacer(modifier = Modifier.height(6.dp))
                                     OutlinedButton(
                                         onClick = {
                                             clipboardManager.setText(AnnotatedString(FirebaseInitializer.DEBUG_SHA1))
-                                            copyNotice = "¡SHA-1 copiado al portapapeles!"
+                                            copyNotice = "¡SHA-1 actual copiado al portapapeles!"
                                         },
                                         modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(8.dp)
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp, horizontal = 8.dp)
                                     ) {
                                         Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Copiar SHA-1 para Firebase Console", fontSize = 11.sp)
+                                        Text("Copiar SHA-1 Actual", fontSize = 11.sp)
                                     }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("SHA-1 Previo (por compatibilidad):", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(FirebaseInitializer.LEGACY_SHA1, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    OutlinedButton(
+                                        onClick = {
+                                            clipboardManager.setText(AnnotatedString(FirebaseInitializer.LEGACY_SHA1))
+                                            copyNotice = "¡SHA-1 previo copiado al portapapeles!"
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp, horizontal = 8.dp)
+                                    ) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Copiar SHA-1 Previo", fontSize = 11.sp)
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("SHA-256 Actual:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(FirebaseInitializer.DEBUG_SHA256, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    OutlinedButton(
+                                        onClick = {
+                                            clipboardManager.setText(AnnotatedString(FirebaseInitializer.DEBUG_SHA256))
+                                            copyNotice = "¡SHA-256 copiado al portapapeles!"
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp, horizontal = 8.dp)
+                                    ) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Copiar SHA-256", fontSize = 11.sp)
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Tip: Firebase Console admite registrar varios SHA-1 a la vez. Conserva ambos para que funcionen tanto las versiones anteriores como las nuevas.",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+
                                     copyNotice?.let { msg ->
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
