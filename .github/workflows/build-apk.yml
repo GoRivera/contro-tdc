@@ -38,31 +38,65 @@ jobs:
       - name: Configurar Android SDK y Licencias
         run: |
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          echo "sdk.dir=$SDK_ROOT" > local.properties
+          export ANDROID_HOME="$SDK_ROOT"
+          export ANDROID_SDK_ROOT="$SDK_ROOT"
 
-          # Asegurar permisos de escritura al runner para auto-descarga de componentes
-          sudo chown -R "$USER:$USER" "$SDK_ROOT" 2>/dev/null || sudo chmod -R 777 "$SDK_ROOT" 2>/dev/null || true
+          # 1. Otorgar permisos al usuario de GitHub Actions sobre los directorios de trabajo del SDK
+          CURRENT_USER=$(whoami)
+          sudo mkdir -p "$SDK_ROOT/licenses" "$SDK_ROOT/platforms" "$SDK_ROOT/build-tools"
+          sudo chown -R "$CURRENT_USER" "$SDK_ROOT/licenses" "$SDK_ROOT/platforms" "$SDK_ROOT/build-tools"
+          mkdir -p "$HOME/.android/licenses"
 
-          # Pre-aprobar licencias oficiales del SDK en el SDK y en el home del runner
-          sudo mkdir -p "$SDK_ROOT/licenses" 2>/dev/null || true
-          mkdir -p "$HOME/.android/licenses" 2>/dev/null || true
-          sudo chmod -R 777 "$SDK_ROOT/licenses" 2>/dev/null || true
-
+          # 2. Registrar hashes oficiales (completos, actualizados y con saltos de línea estrictos)
           for lic_dir in "$SDK_ROOT/licenses" "$HOME/.android/licenses"; do
-            printf "24333f8a63b1d7f2e51f81648a3eb180e1a021ee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n84831b9409646a918e30573bab4c9c91346d8abd\n" | sudo tee "$lic_dir/android-sdk-license" > /dev/null 2>&1 || true
-            printf "84831b9409646a918e30573bab4c9c91346d8abd\n5046274c46de7009618bc4b9f7dd729f60073a35\n" | sudo tee "$lic_dir/android-sdk-preview-license" > /dev/null 2>&1 || true
-            printf "601085b94cd77f0b54ff864069570991500085d7\n" | sudo tee "$lic_dir/android-googletv-license" > /dev/null 2>&1 || true
-            printf "33b6a2b64f07f11b78313276e6b69f6266d7d473\n" | sudo tee "$lic_dir/google-gdk-license" > /dev/null 2>&1 || true
-            printf "e9acab5b5fbb560a72cfa4e23c30ceab4dd4965e\n" | sudo tee "$lic_dir/mips-android-sysimage-license" > /dev/null 2>&1 || true
+            cat << 'EOF' > "$lic_dir/android-sdk-license"
+24333f8a63b1d7f2e51f81648a3eb180e1a021ee
+d56f5187479451eabf01fb78af6dfcb131a6481e
+84831b9409646a918e30573bab4c9c91346d8abd
+24333f8a63b6825ea9c5514f83c2829b004d1fee
+EOF
+
+            cat << 'EOF' > "$lic_dir/android-sdk-preview-license"
+84831b9409646a918e30573bab4c9c91346d8abd
+5046274c46de7009618bc4b9f7dd729f60073a35
+EOF
+
+            cat << 'EOF' > "$lic_dir/android-googletv-license"
+601085b94cd77f0b54ff864069570991500085d7
+601085b94cd77f0b54ff86406957099ebe79c4d6
+EOF
+
+            cat << 'EOF' > "$lic_dir/google-gdk-license"
+33b6a2b64f07f11b78313276e6b69f6266d7d473
+33b6a2b64607f11b759f320ef9dff4ae5c47d97a
+EOF
+
+            cat << 'EOF' > "$lic_dir/mips-android-sysimage-license"
+e9acab5b5fbb560a72cfa4e23c30ceab4dd4965e
+e9acab5b5fbb560a72cfaecce8946896ff6aab9d
+EOF
+
+            cat << 'EOF' > "$lic_dir/android-googlexr-license"
+ceff83576aac4f7f37cb98fe189e9fb3c49d3b81
+EOF
+
+            cat << 'EOF' > "$lic_dir/android-sdk-arm-dbt-license"
+859f317696f67ef3d7f30a50a5560e7834b43903
+EOF
           done
+
+          # 3. Invocar sdkmanager para aceptar formalmente cualquier otra licencia e instalar dependencias
+          SDKMANAGER_BIN=$(find "$SDK_ROOT" -name sdkmanager -type f -perm -111 2>/dev/null | head -n 1)
+          if [ -n "$SDKMANAGER_BIN" ]; then
+            yes | "$SDKMANAGER_BIN" --licenses || true
+            "$SDKMANAGER_BIN" "platforms;android-36" "build-tools;36.0.0" || true
+          fi
 
       - name: Asegurar Keystore persistente
         run: |
           if [ ! -f debug.keystore ] && [ -f debug.keystore.base64 ]; then
             base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || base64 -di debug.keystore.base64 > debug.keystore
           fi
-          # Verificación informativa de la huella digital persistente
-          keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey 2>/dev/null | grep -E "SHA1|SHA256" || true
 
       - name: Compilar APK de depuración
         run: |
