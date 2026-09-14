@@ -47,7 +47,7 @@ class PrivacyNumberFormat(
 fun rememberPrivacyCurrencyFormat(): NumberFormat {
     val isPrivate = LocalPrivacyMode.current
     return remember(isPrivate) {
-        val base = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
+        val base = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-MX"))
         PrivacyNumberFormat(base, isPrivate)
     }
 }
@@ -56,7 +56,7 @@ fun rememberPrivacyCurrencyFormat(): NumberFormat {
  * Utility for formatting financial values with privacy masking when enabled.
  */
 object PrivacyFormat {
-    private val defaultCurrency = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
+    private val defaultCurrency = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-MX"))
 
     fun format(amount: Double, isPrivate: Boolean, customFormatter: NumberFormat? = null): String {
         val fmt = customFormatter ?: defaultCurrency

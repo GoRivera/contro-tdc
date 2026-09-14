@@ -389,7 +389,7 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
     val selectedStatementYear: StateFlow<Int> = _selectedStatementYear.asStateFlow()
 
     private val _selectedStatementMonth = MutableStateFlow(
-        SimpleDateFormat("MMMM", Locale("es", "MX")).format(Date()).replaceFirstChar { it.uppercase() }
+        SimpleDateFormat("MMMM", Locale.forLanguageTag("es-MX")).format(Date()).replaceFirstChar { it.uppercase() }
     )
     val selectedStatementMonth: StateFlow<String> = _selectedStatementMonth.asStateFlow()
 

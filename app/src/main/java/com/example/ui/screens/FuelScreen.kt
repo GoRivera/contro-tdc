@@ -128,8 +128,8 @@ fun FuelScreen(
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
     val currencyFormat = rememberPrivacyCurrencyFormat()
-    val dateFormat = SimpleDateFormat("d 'de' MMMM, yyyy", Locale("es", "MX"))
-    val shortDateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("es", "MX"))
+    val dateFormat = SimpleDateFormat("d 'de' MMMM, yyyy", Locale.forLanguageTag("es-MX"))
+    val shortDateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.forLanguageTag("es-MX"))
 
     var selectedFilter by remember { mutableStateOf(FuelTimeFilter.LAST_30_DAYS) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -967,7 +967,7 @@ fun AddFuelEntryDialog(
 ) {
     val context = LocalContext.current
     val currencyFormat = rememberPrivacyCurrencyFormat()
-    val fullDateFormat = SimpleDateFormat("d 'de' MMMM, yyyy", Locale("es", "MX"))
+    val fullDateFormat = SimpleDateFormat("d 'de' MMMM, yyyy", Locale.forLanguageTag("es-MX"))
     val isDark = isSystemInDarkTheme()
 
     // Requisito 2: "Al registrar una carga de gasolina, se debe solicitar la fecha en que se realizó. Asumiendo predefinidamente que es hoy."

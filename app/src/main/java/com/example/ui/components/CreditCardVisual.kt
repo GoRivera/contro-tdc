@@ -1463,7 +1463,7 @@ internal fun PaymentNetworkBadge(network: String, isCompact: Boolean = false) {
  */
 @Composable
 fun CardParametersStrip(card: CreditCard, modifier: Modifier = Modifier) {
-    val currencyFormat = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
+    val currencyFormat = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-MX"))
     val isBefore15th = card.paymentDueDay <= 15
 
     Surface(

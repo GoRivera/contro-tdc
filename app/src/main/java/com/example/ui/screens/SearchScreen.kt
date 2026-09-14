@@ -63,7 +63,7 @@ fun SearchScreen(
     onClose: () -> Unit
 ) {
     val isPrivate = LocalPrivacyMode.current
-    val currencyFormat = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
+    val currencyFormat = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-MX"))
     val cardMap = remember(cards) { cards.associateBy { it.id } }
     var query by remember { mutableStateOf("") }
 

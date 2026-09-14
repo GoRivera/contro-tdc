@@ -226,8 +226,8 @@ data class StatementSummary(
 
 object CreditCardCalculator {
 
-    val monthFormat = SimpleDateFormat("MMMM yyyy", Locale("es", "MX"))
-    val dayMonthFormat = SimpleDateFormat("d 'de' MMMM", Locale("es", "MX"))
+    val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.forLanguageTag("es-MX"))
+    val dayMonthFormat = SimpleDateFormat("d 'de' MMMM", Locale.forLanguageTag("es-MX"))
     val shortDateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
 
     /**
@@ -987,7 +987,7 @@ object CreditCardCalculator {
      */
     fun calculatePaymentMonthName(card: CreditCard, expenseDateMillis: Long): String {
         val (_, paymentDueDate) = calculateCycleDates(card, Date(expenseDateMillis))
-        val monthName = SimpleDateFormat("MMMM", Locale("es", "MX")).format(paymentDueDate)
+        val monthName = SimpleDateFormat("MMMM", Locale.forLanguageTag("es-MX")).format(paymentDueDate)
         return monthName.replaceFirstChar { it.uppercase() }
     }
 

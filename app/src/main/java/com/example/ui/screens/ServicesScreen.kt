@@ -109,9 +109,9 @@ fun ServicesScreen(
             .sortedBy { it.dateMillis }
             .map { entry ->
                 val label = if (type == ServiceType.GAS) {
-                    SimpleDateFormat("dd/MM", Locale("es", "MX")).format(Date(entry.dateMillis))
+                    SimpleDateFormat("dd/MM", Locale.forLanguageTag("es-MX")).format(Date(entry.dateMillis))
                 } else {
-                    SimpleDateFormat("MMM yy", Locale("es", "MX")).format(Date(entry.dateMillis))
+                    SimpleDateFormat("MMM yy", Locale.forLanguageTag("es-MX")).format(Date(entry.dateMillis))
                 }
                 val value = if (ServiceType.hasConsumption(type)) entry.consumption else entry.amount
                 label to value
@@ -443,7 +443,7 @@ private fun ServiceEntryRow(
         if (entry.serviceType == ServiceType.GAS) {
             CreditCardCalculator.shortDateFormat.format(Date(entry.dateMillis))
         } else {
-            SimpleDateFormat("MMMM yyyy", Locale("es", "MX")).format(Date(entry.dateMillis))
+            SimpleDateFormat("MMMM yyyy", Locale.forLanguageTag("es-MX")).format(Date(entry.dateMillis))
                 .replaceFirstChar { it.uppercase() }
         }
     }
@@ -521,7 +521,7 @@ private fun AddEditServiceEntryDialog(
         if (selectedType == ServiceType.GAS) {
             CreditCardCalculator.shortDateFormat.format(Date(selectedDateMillis))
         } else {
-            SimpleDateFormat("MMMM yyyy", Locale("es", "MX")).format(Date(selectedDateMillis))
+            SimpleDateFormat("MMMM yyyy", Locale.forLanguageTag("es-MX")).format(Date(selectedDateMillis))
                 .replaceFirstChar { it.uppercase() }
         }
     }

@@ -15,11 +15,11 @@ jobs:
       - name: Checkout del repositorio
         uses: actions/checkout@v4
 
-      - name: Configurar JDK 21 (Temurin)
+      - name: Configurar JDK 17 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '17'
           cache: 'gradle'
 
       - name: Dar permisos de ejecución al Gradle Wrapper
@@ -35,20 +35,19 @@ jobs:
             fi
           fi
 
-      - name: Configurar Android SDK y Licencias
+      - name: Configurar Android SDK y Aceptar Licencias
         run: |
-          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          export ANDROID_HOME="$SDK_ROOT"
-          export ANDROID_SDK_ROOT="$SDK_ROOT"
+          set +o pipefail
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
 
-          # 1. Otorgar permisos al usuario de GitHub Actions sobre los directorios de trabajo del SDK
-          CURRENT_USER=$(whoami)
-          sudo mkdir -p "$SDK_ROOT/licenses" "$SDK_ROOT/platforms" "$SDK_ROOT/build-tools"
-          sudo chown -R "$CURRENT_USER" "$SDK_ROOT/licenses" "$SDK_ROOT/platforms" "$SDK_ROOT/build-tools"
-          mkdir -p "$HOME/.android/licenses"
+          # 1. Asegurar propiedad del usuario sobre el SDK para auto-descargas
+          sudo chown -R "$(id -u):$(id -g)" "$ANDROID_HOME" 2>/dev/null || true
+          mkdir -p "$ANDROID_HOME/licenses" "$HOME/.android/licenses"
 
-          # 2. Registrar hashes oficiales (completos, actualizados y con saltos de línea estrictos)
-          for lic_dir in "$SDK_ROOT/licenses" "$HOME/.android/licenses"; do
+          # 2. Registrar todos los hashes oficiales de licencias (antiguos y modernos 2024-2026)
+          for lic_dir in "$ANDROID_HOME/licenses" "$HOME/.android/licenses"; do
             cat << 'EOF' > "$lic_dir/android-sdk-license"
 24333f8a63b1d7f2e51f81648a3eb180e1a021ee
 d56f5187479451eabf01fb78af6dfcb131a6481e
@@ -85,11 +84,10 @@ EOF
 EOF
           done
 
-          # 3. Invocar sdkmanager para aceptar formalmente cualquier otra licencia e instalar dependencias
-          SDKMANAGER_BIN=$(find "$SDK_ROOT" -name sdkmanager -type f -perm -111 2>/dev/null | head -n 1)
-          if [ -n "$SDKMANAGER_BIN" ]; then
-            yes | "$SDKMANAGER_BIN" --licenses || true
-            "$SDKMANAGER_BIN" "platforms;android-36" "build-tools;36.0.0" || true
+          # 3. Invocar sdkmanager directamente sin pipes que causen SIGPIPE 141
+          if [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" || true
           fi
 
       - name: Asegurar Keystore persistente

@@ -92,7 +92,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "credit_cards_manager.db"
                 )
                     .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .addCallback(AppDatabaseCallback(scope))
                     .build()
                 INSTANCE = instance

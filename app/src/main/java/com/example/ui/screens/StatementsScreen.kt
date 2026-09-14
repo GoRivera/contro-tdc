@@ -371,7 +371,7 @@ fun StatementsScreen(
                 val fortnightPeriod = if (due <= 15) "1 al 15" else "16 al fin de mes"
                 val fortnightName = if (due <= 15) "1ª Quincena" else "2ª Quincena"
                 val (_, paymentDueDate, isShifted) = remember(selectedCard) { CreditCardCalculator.calculateCycleDatesDetailed(selectedCard) }
-                val dueDateFormat = remember { SimpleDateFormat("dd 'de' MMMM", Locale("es", "MX")) }
+                val dueDateFormat = remember { SimpleDateFormat("dd 'de' MMMM", Locale.forLanguageTag("es-MX")) }
                 val effectiveDueStr = dueDateFormat.format(paymentDueDate)
 
                 Surface(

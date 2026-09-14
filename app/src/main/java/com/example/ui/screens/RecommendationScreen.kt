@@ -72,7 +72,7 @@ fun RecommendationScreen(
 ) {
     val isDark = isSystemInDarkTheme()
     val isPrivate = LocalPrivacyMode.current
-    val currencyFormat = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
+    val currencyFormat = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-MX"))
     // Requisito 2: Las tarjetas departamentales nunca deben mostrarse como la principal recomendación
     val bestCard = recommendations.firstOrNull { it.isBestOption && !it.card.isDepartmental }
         ?: recommendations.firstOrNull { !it.card.isDepartmental }

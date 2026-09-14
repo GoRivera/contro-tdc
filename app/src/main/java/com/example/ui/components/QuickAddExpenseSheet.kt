@@ -132,8 +132,8 @@ fun QuickAddExpenseSheet(
     val focusManager = LocalFocusManager.current
     val isKeyboardVisible = WindowInsets.isImeVisible
 
-    val currencyFormat = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
-    val displayDateFormat = SimpleDateFormat("EEEE d 'de' MMMM, yyyy", Locale("es", "MX"))
+    val currencyFormat = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-MX"))
+    val displayDateFormat = SimpleDateFormat("EEEE d 'de' MMMM, yyyy", Locale.forLanguageTag("es-MX"))
 
     var concept by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf("") }

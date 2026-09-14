@@ -82,7 +82,7 @@ fun MsiAmortizationDialog(
     onDismiss: () -> Unit,
     onEdit: (() -> Unit)? = null
 ) {
-    val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
+    val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-MX")) }
     val exp = msiSummary.expense
     val totalMonths = exp.msiTotalMonths.coerceAtLeast(1)
     val currentInst = exp.msiCurrentInstallment.coerceIn(0, totalMonths)
