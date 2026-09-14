@@ -1,22 +1,56 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Control TDC - Gestión Financiera de Tarjetas de Crédito
 
-# Run and deploy your AI Studio app
+Aplicación web moderna y completa para el control financiero, optimización de compras y seguimiento de tarjetas de crédito en México, portada desde la aplicación Android original a React + TypeScript + Tailwind CSS.
 
-This contains everything you need to run your app locally.
+## Características Principales Portadas
 
-View your app in AI Studio: https://ai.studio/apps/146e6dcb-a2c4-4a1f-a159-1aec28fc6e70
+- **Recomendador Inteligente de Compras (Semáforo Financiero)**:
+  - Cálculo de días de financiamiento libre de intereses (hasta 50+ días) según la fecha de compra y fechas de corte/límite de pago.
+  - Reglas del sistema bancario mexicano: ajuste de fecha límite de pago si cae en fin de semana o día feriado oficial (Ley para la Transparencia y Ordenamiento de los Servicios Financieros).
+  - Regla de tarjetas departamentales: nunca se seleccionan como opción prioritaria general.
+  - Indicadores semafóricos (Verde: ≥38 días, Amarillo: 23–37 días, Rojo: ≤22 días).
 
-## Run Locally
+- **Gestión Integral de Tarjetas de Crédito**:
+  - Catálogo de bancos mexicanos con paleta visual y marcas (BBVA, Banorte, Santander, Citibanamex, Nu, Hey Banco, Liverpool, Mercado Pago, Palacio de Hierro, etc.).
+  - Línea de crédito total, saldo ocupado, crédito disponible y porcentaje de ocupación en tiempo real.
+  - Presets automáticos de tarjetas populares en México con tasas y anualidades preconfiguradas.
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+- **Rastreador de Meses Sin Intereses (MSI)**:
+  - Vista detallada de cada compra diferida, mensualidad actual, meses restantes y fecha estimada de liquidación.
+  - Avance y retroceso de mensualidad con un solo clic.
+  - Proyección de liberación de flujo de efectivo mes a mes.
+  - Modal interactivo de tabla de amortización por cuotas.
 
+- **Estados de Cuenta y Analytics**:
+  - Desglose consolidado por mes y por tarjeta individual.
+  - Cálculo de "Pago para no generar intereses", compras corrientes, mensualidades MSI y abonos.
+  - Gráficos interactivos de distribución por categoría y por beneficiario (para compras compartidas).
+  - Simulador de pago mínimo con cálculo de intereses compuestos según tasa CAT y desglose de IVA (16%).
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
-7. If you have already published your app in AI Studio, please [request upload key reset](https://support.google.com/googleplay/android-developer/answer/9842756#zippy=%2Crequest-an-upload-key-reset) in Google Play Console.
+- **Control de Suscripciones y Pagos Recurrentes**:
+  - Días restantes para el próximo cobro con barra de proximidad.
+  - Total proyectado de gastos recurrentes por mes.
+
+- **Módulos Complementarios de Gastos**:
+  - **Combustible**: Bitácora de cargas de gasolina (Verde/Roja), cálculo de rendimiento (km/L) y división de gastos con acompañantes.
+  - **Servicios del Hogar**: Registro de luz (CFE kWh), agua (m³), gas y telecomunicaciones.
+  - **Buscador Global**: Búsqueda instantánea con filtros por tarjeta, categoría, beneficiario y rango de fechas.
+
+- **Privacidad y Datos**:
+  - Modo Privacidad para ofuscar montos en pantallas públicas.
+  - Modo Oscuro / Modo Claro de alto contraste.
+  - Exportación e importación de respaldo en formato JSON.
+  - Persistencia local en el navegador (`localStorage`).
+
+## Ejecución Local
+
+```bash
+# Instalar dependencias
+npm install
+
+# Iniciar servidor de desarrollo
+npm run dev
+
+# Compilar para producción
+npm run build
+```
