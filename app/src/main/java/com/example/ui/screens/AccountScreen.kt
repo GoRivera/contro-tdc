@@ -687,13 +687,13 @@ fun AccountScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = if (firebaseUser.isAnonymous) "Sesión de Invitado" else (firebaseUser.displayName.ifBlank { firebaseUser.email }),
+                                        text = firebaseUser.displayName.ifBlank { firebaseUser.email },
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = if (firebaseUser.isAnonymous) "UID: ${firebaseUser.uid.take(10)}..." else firebaseUser.email,
+                                        text = firebaseUser.email,
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

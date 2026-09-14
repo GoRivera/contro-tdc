@@ -78,6 +78,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -121,7 +122,7 @@ fun MsiTrackerScreen(
     onDeleteMsiExpense: ((Expense) -> Unit)? = null
 ) {
     val currencyFormat = rememberPrivacyCurrencyFormat()
-    val isDark = isSystemInDarkTheme()
+    val isDark = isSystemInDarkTheme() || MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     // Requisito 2: Pestañas separadas para aquellos que ya hayan finalizado de los activos
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Activos, 1: Finalizados
@@ -142,10 +143,10 @@ fun MsiTrackerScreen(
 
     // Clasificación de MSI activos vs finalizados
     val activeMsiList = remember(msiList) {
-        msiList.filter { it.installmentsRemaining > 0 && it.expense.msiCurrentInstallment < it.expense.msiTotalMonths }
+        msiList.filter { !it.isCompleted }
     }
     val completedMsiList = remember(msiList) {
-        msiList.filter { it.installmentsRemaining <= 0 || it.expense.msiCurrentInstallment >= it.expense.msiTotalMonths }
+        msiList.filter { it.isCompleted }
     }
 
     val totalMonthlyMsi = activeMsiList.sumOf { it.monthlyPayment }
@@ -527,7 +528,7 @@ fun MsiTrackerScreen(
         // Lista de compras a MSI
         items(filteredMsiList) { item ->
             val exp = item.expense
-            val isCompleted = selectedTab == 1 || item.installmentsRemaining <= 0 || exp.msiCurrentInstallment >= exp.msiTotalMonths
+            val isCompleted = selectedTab == 1 || item.isCompleted
             
             // Requisito 5: Diferenciación visual de acuerdo con la tarjeta
             val cardColor = Color(item.card?.primaryColorHex ?: 0xFF386B1DL)
@@ -552,11 +553,14 @@ fun MsiTrackerScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Badge distintivo de la tarjeta
+                        // Badge distintivo de la tarjeta con contraste garantizado en modo oscuro
+                        val badgeTextColor = if (isDark) MaterialTheme.colorScheme.onSurface else cardColor
+                        val badgeBg = if (isDark) cardColor.copy(alpha = 0.24f) else cardColor.copy(alpha = 0.12f)
+                        val badgeBorderColor = if (isDark) cardColor.copy(alpha = 0.55f) else cardColor.copy(alpha = 0.35f)
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = cardColor.copy(alpha = 0.12f),
-                            modifier = Modifier.border(0.8.dp, cardColor.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                            color = badgeBg,
+                            modifier = Modifier.border(0.8.dp, badgeBorderColor, RoundedCornerShape(8.dp))
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -573,7 +577,7 @@ fun MsiTrackerScreen(
                                     text = "${item.cardName} (${item.card?.bank ?: "TDC"})",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = cardColor
+                                    color = badgeTextColor
                                 )
                             }
                         }
@@ -685,8 +689,10 @@ fun MsiTrackerScreen(
                         verticalAlignment = Alignment.Top
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
+                            verticalAlignment = Alignment.Top,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
@@ -715,13 +721,15 @@ fun MsiTrackerScreen(
 
                             Spacer(modifier = Modifier.width(12.dp))
 
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = exp.concept,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    softWrap = true
                                 )
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "${currencyFormat.format(item.monthlyPayment)} / mes",
                                     fontSize = 13.sp,
@@ -744,23 +752,45 @@ fun MsiTrackerScreen(
                             }
                         }
 
-                        Column(horizontalAlignment = Alignment.End) {
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            modifier = Modifier.padding(start = 4.dp)
+                        ) {
                             // Requisito 7: Porcentaje de avance de cada deuda
                             val progressPct = if (isCompleted) 100 else (item.progressPercent * 100).toInt().coerceIn(0, 100)
                             val compContainer = if (isDark) Color(0xFF1B3820) else Color(0xFFD8ECD5)
                             val compText = if (isDark) Color(0xFF81C784) else Color(0xFF2E6C38)
                             
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isCompleted) compContainer else MaterialTheme.colorScheme.primaryContainer
-                            ) {
-                                Text(
-                                    text = if (isCompleted) "100% liquidado" else "$progressPct% pagado",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isCompleted) compText else MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
+                            if (item.isLastInstallmentPending && !isCompleted) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isDark) Color(0xFF3E2723) else Color(0xFFFFF3CD),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (isDark) Color(0xFFFFB74D).copy(alpha = 0.7f) else Color(0xFFFFCA28)
+                                    )
+                                ) {
+                                    Text(
+                                        text = "Última cuota",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isDark) Color(0xFFFFB74D) else Color(0xFF856404),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            } else {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isCompleted) compContainer else MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        text = if (isCompleted) "100% liquidado" else "$progressPct% pagado",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isCompleted) compText else MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(4.dp))
@@ -771,6 +801,15 @@ fun MsiTrackerScreen(
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+
+                            if (item.isLastInstallmentPending && !isCompleted) {
+                                Text(
+                                    text = "Por liquidar",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isDark) Color(0xFFFFB74D) else Color(0xFF856404)
+                                )
+                            }
                         }
                     }
 

@@ -31,4 +31,7 @@ interface ServiceEntryDao {
 
     @Query("DELETE FROM service_entries WHERE id = :id")
     suspend fun deleteServiceEntryById(id: Long)
+
+    @Query("DELETE FROM service_entries")
+    suspend fun deleteAllServiceEntries()
 }

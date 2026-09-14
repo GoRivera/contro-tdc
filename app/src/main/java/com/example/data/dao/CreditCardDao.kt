@@ -37,4 +37,7 @@ interface CreditCardDao {
 
     @Query("DELETE FROM credit_cards WHERE id = :id")
     suspend fun deleteCardById(id: Long)
+
+    @Query("DELETE FROM credit_cards")
+    suspend fun deleteAllCards()
 }

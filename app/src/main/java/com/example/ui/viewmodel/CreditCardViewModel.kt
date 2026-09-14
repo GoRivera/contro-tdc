@@ -717,9 +717,13 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
         secondaryColorHex: Long = card.secondaryColorHex,
         newNetwork: String = card.network,
         newBank: String = card.bank,
-        newAnnualInterestRatePercent: Double = card.annualInterestRatePercent
+        newAnnualInterestRatePercent: Double = card.annualInterestRatePercent,
+        newLast4Digits: String = card.last4Digits
     ) {
         viewModelScope.launch {
+            val sanitizedDigits = newLast4Digits.filter { it.isDigit() }.take(4).ifBlank {
+                if (card.last4Digits == "0000") "••••" else card.last4Digits
+            }
             val updated = card.copy(
                 name = newName.trim().ifBlank { card.name },
                 bank = newBank.trim().ifBlank { card.bank },
@@ -732,7 +736,8 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
                 primaryColorHex = primaryColorHex,
                 secondaryColorHex = secondaryColorHex,
                 network = newNetwork.trim().ifBlank { card.network },
-                annualInterestRatePercent = newAnnualInterestRatePercent.coerceAtLeast(0.0)
+                annualInterestRatePercent = newAnnualInterestRatePercent.coerceAtLeast(0.0),
+                last4Digits = sanitizedDigits
             )
             repository.updateCard(updated)
         }

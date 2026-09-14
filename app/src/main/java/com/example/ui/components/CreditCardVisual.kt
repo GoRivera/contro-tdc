@@ -502,9 +502,9 @@ fun BankBrandLogo(bankName: String, isCompact: Boolean = false, modifier: Modifi
             bLower.contains("citibanamex") || bLower.contains("banamex") -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "banamex",
+                        text = "Citibanamex",
                         color = Color.White,
-                        fontSize = if (isCompact) 14.sp else 17.sp,
+                        fontSize = if (isCompact) 13.sp else 16.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 0.2.sp
                     )
@@ -553,7 +553,7 @@ fun BankBrandLogo(bankName: String, isCompact: Boolean = false, modifier: Modifi
                         modifier = Modifier.padding(end = 4.dp)
                     ) {
                         Text(
-                            text = "nu",
+                            text = "Nu",
                             color = Color.White,
                             fontSize = if (isCompact) 15.sp else 18.sp,
                             fontWeight = FontWeight.Black,
@@ -720,7 +720,7 @@ fun BankBrandLogo(bankName: String, isCompact: Boolean = false, modifier: Modifi
                     }
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "plata card",
+                        text = "Plata Card",
                         color = Color.White,
                         fontSize = if (isCompact) 13.sp else 16.sp,
                         fontWeight = FontWeight.Black
@@ -745,7 +745,7 @@ fun BankBrandLogo(bankName: String, isCompact: Boolean = false, modifier: Modifi
                     }
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "mercado pago",
+                        text = "Mercado Pago",
                         color = Color.White,
                         fontSize = if (isCompact) 12.sp else 15.sp,
                         fontWeight = FontWeight.Black
@@ -847,12 +847,12 @@ fun BankBrandLogo(bankName: String, isCompact: Boolean = false, modifier: Modifi
                         modifier = Modifier.size(if (isCompact) 16.dp else 20.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text("b", color = Color.White, fontSize = if (isCompact) 11.sp else 13.sp, fontWeight = FontWeight.Black)
+                            Text("B", color = Color.White, fontSize = if (isCompact) 11.sp else 13.sp, fontWeight = FontWeight.Black)
                         }
                     }
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "banregio",
+                        text = "Banregio",
                         color = Color.White,
                         fontSize = if (isCompact) 13.sp else 16.sp,
                         fontWeight = FontWeight.Black
@@ -964,15 +964,15 @@ fun BankBrandBadge(bankName: String, modifier: Modifier = Modifier.size(34.dp)) 
                     Box(contentAlignment = Alignment.Center) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "banamex",
+                                text = "Citibanamex",
                                 color = Color.White,
-                                fontSize = 8.sp,
+                                fontSize = 7.5.sp,
                                 fontWeight = FontWeight.Black
                             )
                             Box(
                                 modifier = Modifier
                                     .padding(start = 2.dp)
-                                    .size(width = 6.dp, height = 3.dp)
+                                    .size(width = 5.dp, height = 3.dp)
                                     .background(Color(0xFFED1C24), RoundedCornerShape(1.dp))
                             )
                         }
@@ -1004,7 +1004,7 @@ fun BankBrandBadge(bankName: String, modifier: Modifier = Modifier.size(34.dp)) 
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = "nu",
+                            text = "Nu",
                             color = Color.White,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Black
@@ -1101,7 +1101,7 @@ fun BankBrandBadge(bankName: String, modifier: Modifier = Modifier.size(34.dp)) 
                     Box(contentAlignment = Alignment.Center) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "hey",
+                                text = "Hey",
                                 color = Color.White,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Black
@@ -1172,7 +1172,7 @@ fun BankBrandBadge(bankName: String, modifier: Modifier = Modifier.size(34.dp)) 
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = "b",
+                            text = "B",
                             color = Color.White,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Black
@@ -1335,7 +1335,8 @@ private fun EmbossedCardNumber(
     isGold: Boolean = false,
     isLightCard: Boolean = false
 ) {
-    val numberText = "••••  ••••  ••••  $last4Digits"
+    val displayDigits = last4Digits.trim().ifBlank { "••••" }
+    val numberText = "••••  ••••  ••••  $displayDigits"
     val fontSize = if (isCompact) 14.sp else 18.sp
 
     Box {

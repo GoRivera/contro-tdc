@@ -102,4 +102,18 @@ class CardRepository(
     suspend fun deleteServiceEntry(entry: ServiceEntry) = serviceEntryDao.deleteServiceEntry(entry)
     suspend fun getServiceEntryByFirestoreId(firestoreId: String): ServiceEntry? =
         serviceEntryDao.getServiceEntryByFirestoreId(firestoreId)
+
+    /**
+     * Elimina todos los registros de todas las tablas locales para permitir una restauración limpia
+     * que sobreescriba completamente la base de datos sin duplicar o mezclar datos.
+     */
+    suspend fun clearAllTables() {
+        subscriptionDao.deleteAllTrackings()
+        fuelEntryDao.deleteAllFuelEntries()
+        expenseDao.deleteAllExpenses()
+        paymentDao.deleteAllPayments()
+        subscriptionDao.deleteAllSubscriptions()
+        cardDao.deleteAllCards()
+        serviceEntryDao.deleteAllServiceEntries()
+    }
 }

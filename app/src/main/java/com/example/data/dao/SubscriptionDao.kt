@@ -36,6 +36,12 @@ interface SubscriptionDao {
     @Query("DELETE FROM subscriptions WHERE id = :id")
     suspend fun deleteSubscriptionById(id: Long)
 
+    @Query("DELETE FROM subscriptions")
+    suspend fun deleteAllSubscriptions()
+
+    @Query("DELETE FROM subscription_payment_trackings")
+    suspend fun deleteAllTrackings()
+
     // Tracking queries
     @Query("SELECT * FROM subscription_payment_trackings WHERE yearMonth = :yearMonth")
     fun getTrackingsForMonth(yearMonth: String): Flow<List<SubscriptionPaymentTracking>>

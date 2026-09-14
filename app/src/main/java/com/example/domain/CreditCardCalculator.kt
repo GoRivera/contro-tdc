@@ -199,7 +199,10 @@ data class MsiSummary(
     val progressPercent: Float,
     val completionDateString: String,
     val willFinishInMonths: Int,
-    val totalPurchaseAmount: Double = 0.0
+    val totalPurchaseAmount: Double = 0.0,
+    val isCompleted: Boolean = false,
+    val isLastInstallmentPending: Boolean = false,
+    val paymentDueDate: Date? = null
 )
 
 data class CashFlowRelease(
@@ -727,11 +730,13 @@ object CreditCardCalculator {
 
     /**
      * Computes MSI item details and remaining timeline.
+     * Si la última cuota cae en el mes en curso, no se marca como finalizada si la fecha límite de pago
+     * aún no ha llegado o el pago no ha concluido.
      */
     fun computeMsiSummary(expense: Expense, card: CreditCard?): MsiSummary {
         val totalMonths = expense.msiTotalMonths.coerceAtLeast(1)
-        val currentInstallment = expense.msiCurrentInstallment.coerceIn(1, totalMonths)
-        val remainingInstallments = totalMonths - currentInstallment
+        val rawCurrentInstallment = expense.msiCurrentInstallment
+        val currentInstallment = rawCurrentInstallment.coerceAtLeast(1)
         val monthlyAmount = expense.amount
 
         val totalCost = if (expense.msiTotalPurchaseAmount > 0) {
@@ -740,13 +745,65 @@ object CreditCardCalculator {
             monthlyAmount * totalMonths
         }
 
-        val totalPaid = monthlyAmount * currentInstallment
-        val remainingBalance = (monthlyAmount * remainingInstallments).coerceAtLeast(0.0)
-        val progress = (currentInstallment.toFloat() / totalMonths.toFloat()).coerceIn(0f, 1f)
-
         // Requisito 2: Cálculo sincronizado de finalización
         val completionCal = getMsiCompletionCalendar(expense)
         val completionDateString = monthFormat.format(completionCal.time).replaceFirstChar { it.uppercase() }
+
+        // Determinar fecha límite de pago de la última cuota para saber si ya expiró el plazo de pago
+        val (isFinalDueDatePassed, paymentDueDate) = if (card != null) {
+            val dueDate = calculatePaymentDueDateForCutoff(card, completionCal.get(Calendar.YEAR), completionCal.get(Calendar.MONTH))
+            val now = Calendar.getInstance().time
+            val isPassed = now.after(dueDate)
+            Pair(isPassed, dueDate)
+        } else {
+            val nowCal = Calendar.getInstance()
+            val isPastMonth = (nowCal.get(Calendar.YEAR) > completionCal.get(Calendar.YEAR)) ||
+                    (nowCal.get(Calendar.YEAR) == completionCal.get(Calendar.YEAR) && nowCal.get(Calendar.MONTH) > completionCal.get(Calendar.MONTH))
+            Pair(isPastMonth, null)
+        }
+
+        val isCompleted: Boolean
+        val isLastInstallmentPending: Boolean
+        val remainingInstallments: Int
+
+        when {
+            currentInstallment > totalMonths -> {
+                // Ya rebasó todas las mensualidades
+                isCompleted = true
+                isLastInstallmentPending = false
+                remainingInstallments = 0
+            }
+            currentInstallment == totalMonths -> {
+                // Última cuota: si la fecha límite de pago no ha pasado, sigue pendiente de liquidar
+                if (isFinalDueDatePassed) {
+                    isCompleted = true
+                    isLastInstallmentPending = false
+                    remainingInstallments = 0
+                } else {
+                    isCompleted = false
+                    isLastInstallmentPending = true
+                    remainingInstallments = 1
+                }
+            }
+            else -> {
+                // Cuotas previas normales
+                isCompleted = false
+                isLastInstallmentPending = false
+                remainingInstallments = (totalMonths - currentInstallment).coerceAtLeast(1)
+            }
+        }
+
+        val totalPaid = if (isCompleted) {
+            totalCost
+        } else {
+            (monthlyAmount * (totalMonths - remainingInstallments)).coerceAtMost(totalCost)
+        }
+        val remainingBalance = (monthlyAmount * remainingInstallments).coerceAtLeast(0.0)
+        val progress = if (isCompleted) {
+            1f
+        } else {
+            ((totalMonths - remainingInstallments).toFloat() / totalMonths.toFloat()).coerceIn(0f, 0.99f)
+        }
 
         return MsiSummary(
             expense = expense,
@@ -759,7 +816,10 @@ object CreditCardCalculator {
             progressPercent = progress,
             completionDateString = completionDateString,
             willFinishInMonths = remainingInstallments,
-            totalPurchaseAmount = totalCost
+            totalPurchaseAmount = totalCost,
+            isCompleted = isCompleted,
+            isLastInstallmentPending = isLastInstallmentPending,
+            paymentDueDate = paymentDueDate
         )
     }
 

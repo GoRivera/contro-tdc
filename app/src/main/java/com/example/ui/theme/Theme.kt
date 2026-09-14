@@ -8,6 +8,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -18,7 +19,7 @@ private val DarkColorScheme = darkColorScheme(
     primaryContainer = NaturalPrimaryContainerDark,
     onPrimaryContainer = NaturalOnPrimaryContainerDark,
     secondary = NaturalSecondaryDark,
-    onSecondary = NaturalSurfaceDark, // NaturalSecondaryDark es un azul claro; texto oscuro para contraste
+    onSecondary = Color(0xFF0F172A),
     secondaryContainer = NaturalSecondaryContainerDark,
     onSecondaryContainer = NaturalOnSecondaryContainerDark,
     tertiary = NaturalTertiaryDark,

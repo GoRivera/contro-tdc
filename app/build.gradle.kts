@@ -17,11 +17,12 @@ android {
     applicationId = "com.aistudio.creditcards.qwvpkz"
     minSdk = 24
     targetSdk = 36
-    // CI pasa -PappVersionCode=<numero de corrida> para que cada APK generado tenga un
-    // versionCode distinto y ascendente (útil para diferenciar builds al iterar).
-    // Localmente (sin ese parámetro) se usa 1 como antes.
-    versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
-    versionName = "1.0.${(project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 0}"
+    // Incrementa la base de versión a 100 + appVersionCode (o 100 por defecto) para
+    // garantizar que cualquier APK nuevo siempre tenga un versionCode superior al instalado
+    // previamente, permitiendo que Android lo instale directamente como una actualización.
+    val runNum = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 0
+    versionCode = 100 + runNum
+    versionName = "1.1.$runNum"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

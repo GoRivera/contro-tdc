@@ -34,4 +34,7 @@ interface FuelEntryDao {
 
     @Query("DELETE FROM fuel_entries WHERE id = :id")
     suspend fun deleteFuelEntryById(id: Long)
+
+    @Query("DELETE FROM fuel_entries")
+    suspend fun deleteAllFuelEntries()
 }

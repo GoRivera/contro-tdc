@@ -141,7 +141,45 @@ class CloudSyncManager(
     }
 
     /**
-     * Sube todos los registros locales existentes a Firestore bajo la cuenta autenticada.
+     * Elimina todos los documentos existentes en las subcolecciones remotas del usuario para
+     * garantizar que la subida sobreescriba por completo la información previa sin mezclar ni dejar
+     * registros huérfanos/eliminados.
+     */
+    private suspend fun clearRemoteCollections(userDocRef: com.google.firebase.firestore.DocumentReference) {
+        val collections = listOf(
+            "cards",
+            "subscriptions",
+            "expenses",
+            "payments",
+            "subscriptionTrackings",
+            "fuel",
+            "services"
+        )
+        for (colName in collections) {
+            val colRef = userDocRef.collection(colName)
+            val snapshot = colRef.get().await()
+            if (!snapshot.isEmpty) {
+                var batch = userDocRef.firestore.batch()
+                var opCount = 0
+                for (doc in snapshot.documents) {
+                    batch.delete(doc.reference)
+                    opCount++
+                    if (opCount >= 400) {
+                        batch.commit().await()
+                        batch = userDocRef.firestore.batch()
+                        opCount = 0
+                    }
+                }
+                if (opCount > 0) {
+                    batch.commit().await()
+                }
+            }
+        }
+    }
+
+    /**
+     * Sube todos los registros locales existentes a Firestore bajo la cuenta autenticada,
+     * eliminando previamente cualquier dato remoto anterior para sobreescribir la información.
      */
     suspend fun uploadAllLocalDataToCloud(): Result<Unit> = withContext(Dispatchers.IO) {
         if (!isFirebaseInitialized) {
@@ -162,6 +200,9 @@ class CloudSyncManager(
             val firestore = FirebaseFirestore.getInstance()
             val userDocRef = firestore.collection("users").document(user.uid)
 
+            // Eliminar información previa en la nube para sobreescribir limpiamente
+            clearRemoteCollections(userDocRef)
+
             // 1. Obtener datos locales y garantizar que todos tengan un firestoreId estable
             val cards = repository.allCards.first().map { ensureCardFirestoreId(it) }
             val cardFidByLocalId = cards.associate { it.id to it.firestoreId }
@@ -177,7 +218,17 @@ class CloudSyncManager(
             val fuelEntries = repository.allFuelEntries.first().map { ensureFuelEntryFirestoreId(it) }
             val serviceEntries = repository.allServiceEntries.first().map { ensureServiceEntryFirestoreId(it) }
 
-            val batch = firestore.batch()
+            var batch = firestore.batch()
+            var opCount = 0
+
+            suspend fun checkBatch() {
+                opCount++
+                if (opCount >= 400) {
+                    batch.commit().await()
+                    batch = firestore.batch()
+                    opCount = 0
+                }
+            }
 
             for (card in cards) {
                 val doc = userDocRef.collection("cards").document(card.firestoreId)
@@ -198,7 +249,8 @@ class CloudSyncManager(
                     "cardholderName" to card.cardholderName,
                     "annualInterestRatePercent" to card.annualInterestRatePercent
                 )
-                batch.set(doc, map, SetOptions.merge())
+                batch.set(doc, map)
+                checkBatch()
             }
 
             for (sub in subscriptions) {
@@ -216,7 +268,8 @@ class CloudSyncManager(
                     "participantsSummary" to sub.participantsSummary,
                     "periodicity" to sub.periodicity
                 )
-                batch.set(doc, map, SetOptions.merge())
+                batch.set(doc, map)
+                checkBatch()
             }
 
             // Subir gastos
@@ -239,7 +292,8 @@ class CloudSyncManager(
                     "isSubscription" to exp.isSubscription,
                     "subscriptionFirestoreId" to (exp.subscriptionId?.let { subFidByLocalId[it] } ?: "")
                 )
-                batch.set(doc, map, SetOptions.merge())
+                batch.set(doc, map)
+                checkBatch()
             }
 
             // Subir pagos
@@ -255,7 +309,8 @@ class CloudSyncManager(
                     "targetStatementMonth" to pay.targetStatementMonth,
                     "notes" to pay.notes
                 )
-                batch.set(doc, map, SetOptions.merge())
+                batch.set(doc, map)
+                checkBatch()
             }
 
             // Subir seguimiento de pagos de suscripciones (quién ya pagó cada mes)
@@ -270,7 +325,8 @@ class CloudSyncManager(
                     "isPaid" to t.isPaid,
                     "paidDateMillis" to (t.paidDateMillis ?: 0L)
                 )
-                batch.set(doc, map, SetOptions.merge())
+                batch.set(doc, map)
+                checkBatch()
             }
 
             // Subir gasolina
@@ -293,7 +349,8 @@ class CloudSyncManager(
                     "dateMillis" to fuel.dateMillis,
                     "notes" to fuel.notes
                 )
-                batch.set(doc, map, SetOptions.merge())
+                batch.set(doc, map)
+                checkBatch()
             }
 
             // Subir servicios (agua, luz, gas) — independiente de tarjetas/gastos
@@ -307,7 +364,8 @@ class CloudSyncManager(
                     "consumption" to service.consumption,
                     "notes" to service.notes
                 )
-                batch.set(doc, map, SetOptions.merge())
+                batch.set(doc, map)
+                checkBatch()
             }
 
             // Guardar metadata de sincronización
@@ -320,9 +378,13 @@ class CloudSyncManager(
                 ),
                 SetOptions.merge()
             )
+            opCount++
 
-            batch.commit().await()
-            _syncState.value = SyncState.Success("Sincronización a la nube completada con éxito.")
+            if (opCount > 0) {
+                batch.commit().await()
+            }
+
+            _syncState.value = SyncState.Success("Sincronización a la nube completada. Datos previos sobreescritos con éxito.")
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e("CloudSyncManager", "Error al sincronizar con Firestore", e)
@@ -332,11 +394,9 @@ class CloudSyncManager(
     }
 
     /**
-     * Descarga y restaura los datos de la nube hacia la base de datos local, incluyendo tarjetas, gastos,
-     * pagos/abonos, suscripciones, su seguimiento mensual de pagos, cargas de gasolina y servicios
-     * (agua/luz/gas) — las siete colecciones que se suben en [uploadAllLocalDataToCloud]. El emparejamiento con registros locales
-     * existentes se hace por `firestoreId`, así que restaurar es seguro incluso en un dispositivo que ya
-     * tenga datos propios: nunca sobrescribe un registro local que no corresponda al mismo `firestoreId`.
+     * Descarga y restaura los datos de la nube hacia la base de datos local.
+     * Elimina previamente todos los datos locales para sobreescribirlos limpiamente con los de la nube,
+     * evitando combinar o duplicar registros de múltiples sincronizaciones.
      */
     suspend fun restoreFromCloudToLocal(): Result<Unit> = withContext(Dispatchers.IO) {
         if (!isFirebaseInitialized) {
@@ -357,15 +417,25 @@ class CloudSyncManager(
             val firestore = FirebaseFirestore.getInstance()
             val userDocRef = firestore.collection("users").document(user.uid)
 
-            // 1. Restaurar tarjetas primero: son la base de la que dependen gastos, pagos, suscripciones y gasolina
-            val cardLocalIdByFid = mutableMapOf<String, Long>()
+            // 1. Obtener todas las capturas de la nube antes de alterar la base de datos local
             val cardsSnap = userDocRef.collection("cards").get().await()
+            val subsSnap = userDocRef.collection("subscriptions").get().await()
+            val expensesSnap = userDocRef.collection("expenses").get().await()
+            val paymentsSnap = userDocRef.collection("payments").get().await()
+            val trackingsSnap = userDocRef.collection("subscriptionTrackings").get().await()
+            val fuelSnap = userDocRef.collection("fuel").get().await()
+            val servicesSnap = userDocRef.collection("services").get().await()
+
+            // 2. Limpiar todas las tablas locales para garantizar una sobreescritura limpia sin combinar
+            repository.clearAllTables()
+
+            // 3. Restaurar tarjetas primero: son la base de la que dependen gastos, pagos, suscripciones y gasolina
+            val cardLocalIdByFid = mutableMapOf<String, Long>()
             for (doc in cardsSnap.documents) {
                 val data = doc.data ?: continue
                 val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
-                val existing = repository.getCardByFirestoreId(fid)
                 val card = CreditCard(
-                    id = existing?.id ?: 0L,
+                    id = 0L,
                     firestoreId = fid,
                     name = data["name"] as? String ?: "Tarjeta",
                     bank = data["bank"] as? String ?: "Banco",
@@ -382,26 +452,19 @@ class CloudSyncManager(
                     cardholderName = data["cardholderName"] as? String ?: "Titular",
                     annualInterestRatePercent = (data["annualInterestRatePercent"] as? Number)?.toDouble() ?: 55.0
                 )
-                val localId = if (existing != null) {
-                    repository.updateCard(card)
-                    existing.id
-                } else {
-                    repository.insertCard(card)
-                }
+                val localId = repository.insertCard(card)
                 cardLocalIdByFid[fid] = localId
             }
 
-            // 2. Restaurar suscripciones (antes de gastos y de su seguimiento de pagos, que dependen de ellas)
+            // 4. Restaurar suscripciones
             val subLocalIdByFid = mutableMapOf<String, Long>()
-            val subsSnap = userDocRef.collection("subscriptions").get().await()
             for (doc in subsSnap.documents) {
                 val data = doc.data ?: continue
                 val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
                 val cardFid = data["cardFirestoreId"] as? String ?: ""
                 val localCardId = cardLocalIdByFid[cardFid] ?: 0L
-                val existing = repository.getSubscriptionByFirestoreId(fid)
                 val sub = Subscription(
-                    id = existing?.id ?: 0L,
+                    id = 0L,
                     firestoreId = fid,
                     name = data["name"] as? String ?: "Suscripción",
                     cardId = localCardId,
@@ -414,18 +477,12 @@ class CloudSyncManager(
                     participantsSummary = data["participantsSummary"] as? String ?: "",
                     periodicity = data["periodicity"] as? String ?: "MENSUAL"
                 )
-                val localId = if (existing != null) {
-                    repository.updateSubscription(sub)
-                    existing.id
-                } else {
-                    repository.insertSubscription(sub)
-                }
+                val localId = repository.insertSubscription(sub)
                 subLocalIdByFid[fid] = localId
             }
 
-            // 3. Restaurar gastos
+            // 5. Restaurar gastos
             val expenseLocalIdByFid = mutableMapOf<String, Long>()
-            val expensesSnap = userDocRef.collection("expenses").get().await()
             for (doc in expensesSnap.documents) {
                 val data = doc.data ?: continue
                 val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
@@ -433,9 +490,8 @@ class CloudSyncManager(
                 val localCardId = cardLocalIdByFid[cardFid] ?: continue
                 val subFid = data["subscriptionFirestoreId"] as? String ?: ""
                 val localSubId = if (subFid.isNotBlank()) subLocalIdByFid[subFid] else null
-                val existing = repository.getExpenseByFirestoreId(fid)
                 val expense = Expense(
-                    id = existing?.id ?: 0L,
+                    id = 0L,
                     firestoreId = fid,
                     cardId = localCardId,
                     concept = data["concept"] as? String ?: "Gasto",
@@ -452,25 +508,18 @@ class CloudSyncManager(
                     isSubscription = data["isSubscription"] as? Boolean ?: false,
                     subscriptionId = localSubId
                 )
-                val localId = if (existing != null) {
-                    repository.updateExpense(expense)
-                    existing.id
-                } else {
-                    repository.insertExpense(expense)
-                }
+                val localId = repository.insertExpense(expense)
                 expenseLocalIdByFid[fid] = localId
             }
 
-            // 4. Restaurar pagos/abonos
-            val paymentsSnap = userDocRef.collection("payments").get().await()
+            // 6. Restaurar pagos/abonos
             for (doc in paymentsSnap.documents) {
                 val data = doc.data ?: continue
                 val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
                 val cardFid = data["cardFirestoreId"] as? String ?: ""
                 val localCardId = cardLocalIdByFid[cardFid] ?: continue
-                val existing = repository.getPaymentByFirestoreId(fid)
                 val payment = Payment(
-                    id = existing?.id ?: 0L,
+                    id = 0L,
                     cardId = localCardId,
                     concept = data["concept"] as? String ?: "Pago",
                     amount = (data["amount"] as? Number)?.toDouble() ?: 0.0,
@@ -480,20 +529,18 @@ class CloudSyncManager(
                     notes = data["notes"] as? String ?: "",
                     firestoreId = fid
                 )
-                if (existing != null) repository.updatePayment(payment) else repository.insertPayment(payment)
+                repository.insertPayment(payment)
             }
 
-            // 5. Restaurar seguimiento de pagos de suscripciones (quién ya pagó cada mes)
-            val trackingsSnap = userDocRef.collection("subscriptionTrackings").get().await()
+            // 7. Restaurar seguimiento de pagos de suscripciones
             for (doc in trackingsSnap.documents) {
                 val data = doc.data ?: continue
                 val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
                 val subFid = data["subscriptionFirestoreId"] as? String ?: ""
                 val localSubId = subLocalIdByFid[subFid] ?: continue
-                val existing = repository.getTrackingByFirestoreId(fid)
                 val paidMillis = (data["paidDateMillis"] as? Number)?.toLong() ?: 0L
                 val tracking = SubscriptionPaymentTracking(
-                    id = existing?.id ?: 0L,
+                    id = 0L,
                     subscriptionId = localSubId,
                     yearMonth = data["yearMonth"] as? String ?: "",
                     participantName = data["participantName"] as? String ?: "",
@@ -502,11 +549,10 @@ class CloudSyncManager(
                     paidDateMillis = if (paidMillis > 0L) paidMillis else null,
                     firestoreId = fid
                 )
-                if (existing != null) repository.updateTracking(tracking) else repository.insertTracking(tracking)
+                repository.insertTracking(tracking)
             }
 
-            // 6. Restaurar cargas de combustible
-            val fuelSnap = userDocRef.collection("fuel").get().await()
+            // 8. Restaurar cargas de combustible
             for (doc in fuelSnap.documents) {
                 val data = doc.data ?: continue
                 val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
@@ -514,9 +560,8 @@ class CloudSyncManager(
                 val localCardId = cardLocalIdByFid[cardFid] ?: continue
                 val expenseFid = data["expenseFirestoreId"] as? String ?: ""
                 val localExpenseId = if (expenseFid.isNotBlank()) expenseLocalIdByFid[expenseFid] else null
-                val existing = repository.getFuelEntryByFirestoreId(fid)
                 val entry = FuelEntry(
-                    id = existing?.id ?: 0L,
+                    id = 0L,
                     cardId = localCardId,
                     expenseId = localExpenseId,
                     kmDriven = (data["kmDriven"] as? Number)?.toDouble() ?: 0.0,
@@ -533,17 +578,15 @@ class CloudSyncManager(
                     notes = data["notes"] as? String ?: "",
                     firestoreId = fid
                 )
-                if (existing != null) repository.updateFuelEntry(entry) else repository.insertFuelEntry(entry)
+                repository.insertFuelEntry(entry)
             }
 
-            // 7. Restaurar servicios (agua, luz, gas)
-            val servicesSnap = userDocRef.collection("services").get().await()
+            // 9. Restaurar servicios (agua, luz, gas)
             for (doc in servicesSnap.documents) {
                 val data = doc.data ?: continue
                 val fid = (data["firestoreId"] as? String)?.ifBlank { doc.id } ?: doc.id
-                val existing = repository.getServiceEntryByFirestoreId(fid)
                 val entry = ServiceEntry(
-                    id = existing?.id ?: 0L,
+                    id = 0L,
                     serviceType = data["serviceType"] as? String ?: com.example.data.model.ServiceType.AGUA,
                     dateMillis = (data["dateMillis"] as? Number)?.toLong() ?: System.currentTimeMillis(),
                     amount = (data["amount"] as? Number)?.toDouble() ?: 0.0,
@@ -551,10 +594,10 @@ class CloudSyncManager(
                     notes = data["notes"] as? String ?: "",
                     firestoreId = fid
                 )
-                if (existing != null) repository.updateServiceEntry(entry) else repository.insertServiceEntry(entry)
+                repository.insertServiceEntry(entry)
             }
 
-            _syncState.value = SyncState.Success("Datos restaurados exitosamente desde la nube.")
+            _syncState.value = SyncState.Success("Datos restaurados y sobreescritos con éxito desde la nube.")
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e("CloudSyncManager", "Error al restaurar desde Firestore", e)

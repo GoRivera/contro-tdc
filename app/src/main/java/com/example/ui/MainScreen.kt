@@ -121,7 +121,6 @@ import com.example.ui.screens.MsiTrackerScreen
 import com.example.ui.screens.RecommendationScreen
 import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.ServicesScreen
-import com.example.ui.screens.SpendingTrendsScreen
 import com.example.ui.screens.StatementsScreen
 import com.example.ui.screens.SubscriptionsScreen
 import com.example.ui.theme.NaturalBackgroundLight
@@ -233,7 +232,11 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                    ) {
                         Text(
                             text = when (selectedTab) {
                                 0 -> "BIENVENIDO • CONTROL TDC"
@@ -270,7 +273,7 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                     }
 
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Botón de Modo Privacidad (Ocultar cifras)
@@ -296,27 +299,6 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                             }
                         }
 
-                        // Botón de Servicios (agua, luz, gas) — reemplaza el antiguo botón de
-                        // "Notificaciones" que no tenía ninguna acción asociada.
-                        Surface(
-                            shape = CircleShape,
-                            color = if (selectedTab == 7) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .clickable { selectedTab = 7 }
-                                .testTag("btn_top_services")
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Bolt,
-                                    contentDescription = "Servicios: agua, luz y gas",
-                                    tint = if (selectedTab == 7) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-
                         // Botón de Búsqueda global
                         Surface(
                             shape = CircleShape,
@@ -332,26 +314,6 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                                     imageVector = Icons.Default.Search,
                                     contentDescription = "Buscar",
                                     tint = if (selectedTab == 9) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-
-                        // Botón de Tendencias de Gasto
-                        Surface(
-                            shape = CircleShape,
-                            color = if (selectedTab == 8) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .clickable { selectedTab = 8 }
-                                .testTag("btn_top_trends")
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.TrendingUp,
-                                    contentDescription = "Tendencias de gasto",
-                                    tint = if (selectedTab == 8) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -473,7 +435,7 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                     // siempre visibles; con esto quedan 5, más cómodo en pantallas de celular).
                     // No cambia a qué pestaña navega cada una (siguen siendo selectedTab 2 y 3).
                     NavigationBarItem(
-                        selected = selectedTab in listOf(2, 3, 7, 8),
+                        selected = selectedTab in listOf(2, 3, 7),
                         onClick = {
                             AppHaptics.light(haptic, isHapticsEnabled)
                             showMoreMenu = true
@@ -508,15 +470,6 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                                             selectedTab = 7
                                         },
                                         modifier = Modifier.testTag("nav_services")
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Tendencias de Gasto") },
-                                        leadingIcon = { Icon(Icons.Default.TrendingUp, contentDescription = null) },
-                                        onClick = {
-                                            showMoreMenu = false
-                                            selectedTab = 8
-                                        },
-                                        modifier = Modifier.testTag("nav_trends")
                                     )
                                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                                     DropdownMenuItem(
@@ -554,7 +507,7 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                             Text(
                                 "Más",
                                 fontSize = 9.sp,
-                                fontWeight = if (selectedTab in listOf(2, 3, 7, 8)) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (selectedTab in listOf(2, 3, 7)) FontWeight.Bold else FontWeight.Normal
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
@@ -814,7 +767,7 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                     onAddCard = { name, bank, cutoff, due, limit, pColor, sColor, lastDigits, net, isDep, grace, cardholder ->
                         viewModel.addCard(name, bank, cutoff, due, limit, pColor, sColor, lastDigits, net, isDep, grace, cardholder)
                     },
-                    onUpdateCardDates = { card, newName, newCutoff, newDue, newLimit, newGrace, isDep, cardholder, pColor, sColor, newNet, newBank, newRate ->
+                    onUpdateCardDates = { card, newName, newCutoff, newDue, newLimit, newGrace, isDep, cardholder, pColor, sColor, newNet, newBank, newRate, newDigits ->
                         viewModel.updateCardDates(
                             card = card,
                             newName = newName,
@@ -828,7 +781,8 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                             secondaryColorHex = sColor,
                             newNetwork = newNet,
                             newBank = newBank,
-                            newAnnualInterestRatePercent = newRate
+                            newAnnualInterestRatePercent = newRate,
+                            newLast4Digits = newDigits
                         )
                     },
                     onDeleteCard = { viewModel.deleteCard(it) }
@@ -890,11 +844,6 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                         )
                     },
                     onDeleteEntry = { viewModel.deleteServiceEntry(it) }
-                )
-
-                8 -> SpendingTrendsScreen(
-                    expenses = allExpenses,
-                    onClose = { selectedTab = 0 }
                 )
 
                 9 -> SearchScreen(
@@ -1086,11 +1035,6 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                             onClick = { selectedAuthTab = 1; signInError = null },
                             text = { Text("Correo", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
                         )
-                        Tab(
-                            selected = selectedAuthTab == 2,
-                            onClick = { selectedAuthTab = 2; signInError = null },
-                            text = { Text("Invitado", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-                        )
                     }
 
                     when (selectedAuthTab) {
@@ -1278,54 +1222,6 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                                     ) {
                                         Text("¿Olvidaste tu contraseña? Restablecer", fontSize = 11.sp)
                                     }
-                                }
-                            }
-                        }
-
-                        // --- Pestaña 2: Acceso Rápido / Invitado ---
-                        2 -> {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    text = "Conéctate de forma instantánea sin correos ni contraseñas. Ideal para probar la sincronización en la nube con Firestore de inmediato.",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-
-                                Button(
-                                    onClick = {
-                                        isSigningIn = true
-                                        signInError = null
-                                        signInSuccessMessage = null
-                                        coroutineScope.launch {
-                                            val res = viewModel.googleAuthManager.signInAnonymously()
-                                            isSigningIn = false
-                                            res.fold(
-                                                onSuccess = { user ->
-                                                    viewModel.onFirebaseUserAuthenticated(user)
-                                                    showGoogleSignInDialog = false
-                                                },
-                                                onFailure = { ex ->
-                                                    signInError = ex.localizedMessage ?: "Error al conectar como invitado."
-                                                }
-                                            )
-                                        }
-                                    },
-                                    enabled = !isSigningIn,
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    if (isSigningIn) {
-                                        androidx.compose.material3.CircularProgressIndicator(
-                                            modifier = Modifier.size(16.dp),
-                                            strokeWidth = 2.dp,
-                                            color = MaterialTheme.colorScheme.onPrimary
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                    } else {
-                                        Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                    }
-                                    Text("Entrar de Inmediato (Modo Invitado)", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }

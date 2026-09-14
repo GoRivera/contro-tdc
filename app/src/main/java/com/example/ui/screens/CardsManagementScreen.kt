@@ -767,7 +767,8 @@ fun CardsManagementScreen(
         secondaryColorHex: Long,
         newNetwork: String,
         newBank: String,
-        newAnnualInterestRatePercent: Double
+        newAnnualInterestRatePercent: Double,
+        newLast4Digits: String
     ) -> Unit,
     onDeleteCard: (CreditCard) -> Unit
 ) {
@@ -1304,6 +1305,9 @@ fun CardsManagementScreen(
                 if (card.annualInterestRatePercent % 1.0 == 0.0) card.annualInterestRatePercent.toLong().toString() else card.annualInterestRatePercent.toString()
             )
         }
+        var editLastDigits by remember(card) {
+            mutableStateOf(if (card.last4Digits == "0000" || card.last4Digits == "••••") "" else card.last4Digits)
+        }
         var editIsDepartmental by remember(card) { mutableStateOf(card.isDepartmental) }
         var editPrimaryHex by remember(card) { mutableLongStateOf(card.primaryColorHex) }
         var editSecondaryHex by remember(card) { mutableLongStateOf(card.secondaryColorHex) }
@@ -1591,24 +1595,42 @@ fun CardsManagementScreen(
                         modifier = Modifier.fillMaxWidth().testTag("edit_credit_limit_input")
                     )
 
-                    // Tasa de interés anual real de la tarjeta (usada en el simulador de pago mínimo)
-                    OutlinedTextField(
-                        value = editRate,
-                        onValueChange = { input ->
-                            val filtered = input.filter { c -> c.isDigit() || c == '.' }
-                            editRate = if (filtered.count { it == '.' } > 1) editRate else filtered
-                        },
-                        label = { Text("Tasa de Interés Anual (%)") },
-                        placeholder = { Text("Ej. 55.0") },
-                        supportingText = { Text("Tasa ordinaria anual de tu contrato, usada en el simulador de pago mínimo", fontSize = 10.sp) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    // Tasa de interés anual y últimos 4 dígitos
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = editRate,
+                            onValueChange = { input ->
+                                val filtered = input.filter { c -> c.isDigit() || c == '.' }
+                                editRate = if (filtered.count { it == '.' } > 1) editRate else filtered
+                            },
+                            label = { Text("Tasa Anual (%)") },
+                            placeholder = { Text("Ej. 55.0") },
+                            supportingText = { Text("Tasa ordinaria", fontSize = 10.sp) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.weight(1.1f)
+                        )
+
+                        OutlinedTextField(
+                            value = editLastDigits,
+                            onValueChange = { editLastDigits = it.filter { c -> c.isDigit() }.take(4) },
+                            label = { Text("Últimos 4") },
+                            placeholder = { Text("1234") },
+                            supportingText = { Text("Terminación", fontSize = 10.sp) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(0.9f)
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
+                        val sanitizedLastDigits = editLastDigits.filter { it.isDigit() }.take(4).ifBlank {
+                            if (card.last4Digits == "0000") "••••" else card.last4Digits
+                        }
                         onUpdateCardDates(
                             card,
                             editName,
@@ -1622,7 +1644,8 @@ fun CardsManagementScreen(
                             editSecondaryHex,
                             editNetwork,
                             editBank,
-                            parsedRate
+                            parsedRate,
+                            sanitizedLastDigits
                         )
                         editingCard = null
                     },
@@ -2038,7 +2061,7 @@ fun CardsManagementScreen(
                                 parsedLimit,
                                 selectedPrimaryHex,
                                 selectedSecondaryHex,
-                                lastDigits.filter { it.isDigit() }.ifBlank { "0000" },
+                                lastDigits.filter { it.isDigit() }.take(4).ifBlank { "••••" },
                                 network,
                                 isDepartmental,
                                 graceNum,

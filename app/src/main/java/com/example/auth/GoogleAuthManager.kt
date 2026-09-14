@@ -146,37 +146,6 @@ class GoogleAuthManager(private val context: Context) {
     }
 
     /**
-     * Inicia sesión anónima en Firebase Auth para probar la sincronización de inmediato sin credenciales.
-     */
-    suspend fun signInAnonymously(): Result<FirebaseAccountInfo> = withContext(Dispatchers.IO) {
-        if (!isFirebaseReady) {
-            return@withContext Result.failure(
-                IllegalStateException("Firebase no está disponible en este momento.")
-            )
-        }
-        try {
-            val auth = FirebaseAuth.getInstance()
-            val authResult = auth.signInAnonymously().await()
-            val user = authResult.user
-            if (user != null) {
-                val accountInfo = FirebaseAccountInfo(
-                    uid = user.uid,
-                    email = "Invitado (${user.uid.take(6)})",
-                    displayName = "Usuario Invitado",
-                    photoUrl = null,
-                    isAnonymous = true
-                )
-                Result.success(accountInfo)
-            } else {
-                Result.failure(Exception("No se pudo crear la sesión de invitado."))
-            }
-        } catch (e: Exception) {
-            Log.e("GoogleAuthManager", "Error en signInAnonymously", e)
-            Result.failure(Exception(e.localizedMessage ?: "Error al conectar de forma anónima."))
-        }
-    }
-
-    /**
      * Envía correo de recuperación de contraseña.
      */
     suspend fun sendPasswordResetEmail(email: String): Result<Unit> = withContext(Dispatchers.IO) {
