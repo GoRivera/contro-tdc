@@ -33,10 +33,169 @@ class GoogleAuthManager(private val context: Context) {
 
     val isFirebaseReady: Boolean
         get() = try {
+            if (FirebaseApp.getApps(context).isEmpty()) {
+                FirebaseInitializer.ensureInitialized(context)
+            }
             FirebaseApp.getApps(context).isNotEmpty()
         } catch (e: Exception) {
             false
         }
+
+    /**
+     * Inicia sesión con Correo Electrónico y Contraseña usando Firebase Auth.
+     * Funciona en cualquier dispositivo o emulador sin depender de Google Play Services ni SHA-1.
+     */
+    suspend fun signInWithEmailAndPassword(
+        email: String,
+        password: String
+    ): Result<FirebaseAccountInfo> = withContext(Dispatchers.IO) {
+        if (!isFirebaseReady) {
+            return@withContext Result.failure(
+                IllegalStateException("Firebase no está disponible en este momento.")
+            )
+        }
+        val cleanEmail = email.trim()
+        if (cleanEmail.isBlank() || password.isBlank()) {
+            return@withContext Result.failure(
+                IllegalArgumentException("Por favor ingresa un correo y contraseña válidos.")
+            )
+        }
+
+        try {
+            val auth = FirebaseAuth.getInstance()
+            val authResult = auth.signInWithEmailAndPassword(cleanEmail, password).await()
+            val user = authResult.user
+            if (user != null) {
+                val accountInfo = FirebaseAccountInfo(
+                    uid = user.uid,
+                    email = user.email ?: cleanEmail,
+                    displayName = user.displayName ?: cleanEmail.substringBefore("@"),
+                    photoUrl = user.photoUrl?.toString(),
+                    isAnonymous = false
+                )
+                Result.success(accountInfo)
+            } else {
+                Result.failure(Exception("No se pudo obtener información de la cuenta."))
+            }
+        } catch (e: com.google.firebase.auth.FirebaseAuthInvalidUserException) {
+            Result.failure(Exception("No existe ninguna cuenta registrada con este correo."))
+        } catch (e: com.google.firebase.auth.FirebaseAuthInvalidCredentialsException) {
+            Result.failure(Exception("Contraseña incorrecta o correo inválido."))
+        } catch (e: Exception) {
+            Log.e("GoogleAuthManager", "Error en signInWithEmailAndPassword", e)
+            Result.failure(Exception(e.localizedMessage ?: "Error al iniciar sesión."))
+        }
+    }
+
+    /**
+     * Registra una nueva cuenta con Correo Electrónico y Contraseña usando Firebase Auth.
+     */
+    suspend fun signUpWithEmailAndPassword(
+        email: String,
+        password: String,
+        displayName: String
+    ): Result<FirebaseAccountInfo> = withContext(Dispatchers.IO) {
+        if (!isFirebaseReady) {
+            return@withContext Result.failure(
+                IllegalStateException("Firebase no está disponible en este momento.")
+            )
+        }
+        val cleanEmail = email.trim()
+        val cleanName = displayName.trim()
+        if (cleanEmail.isBlank() || password.length < 6) {
+            return@withContext Result.failure(
+                IllegalArgumentException("La contraseña debe tener al menos 6 caracteres y el correo ser válido.")
+            )
+        }
+
+        try {
+            val auth = FirebaseAuth.getInstance()
+            val authResult = auth.createUserWithEmailAndPassword(cleanEmail, password).await()
+            val user = authResult.user
+            if (user != null) {
+                // Actualizar nombre de visualización si se proporcionó
+                if (cleanName.isNotBlank()) {
+                    try {
+                        val profileUpdate = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                            .setDisplayName(cleanName)
+                            .build()
+                        user.updateProfile(profileUpdate).await()
+                    } catch (e: Exception) {
+                        Log.w("GoogleAuthManager", "No se pudo actualizar el nombre de perfil", e)
+                    }
+                }
+                val accountInfo = FirebaseAccountInfo(
+                    uid = user.uid,
+                    email = user.email ?: cleanEmail,
+                    displayName = if (cleanName.isNotBlank()) cleanName else (user.displayName ?: cleanEmail.substringBefore("@")),
+                    photoUrl = user.photoUrl?.toString(),
+                    isAnonymous = false
+                )
+                Result.success(accountInfo)
+            } else {
+                Result.failure(Exception("No se pudo crear la cuenta de usuario."))
+            }
+        } catch (e: com.google.firebase.auth.FirebaseAuthUserCollisionException) {
+            Result.failure(Exception("Ya existe una cuenta con este correo. Prueba iniciando sesión."))
+        } catch (e: com.google.firebase.auth.FirebaseAuthWeakPasswordException) {
+            Result.failure(Exception("La contraseña es muy débil. Debe tener al menos 6 caracteres."))
+        } catch (e: Exception) {
+            Log.e("GoogleAuthManager", "Error en signUpWithEmailAndPassword", e)
+            Result.failure(Exception(e.localizedMessage ?: "Error al registrar la cuenta."))
+        }
+    }
+
+    /**
+     * Inicia sesión anónima en Firebase Auth para probar la sincronización de inmediato sin credenciales.
+     */
+    suspend fun signInAnonymously(): Result<FirebaseAccountInfo> = withContext(Dispatchers.IO) {
+        if (!isFirebaseReady) {
+            return@withContext Result.failure(
+                IllegalStateException("Firebase no está disponible en este momento.")
+            )
+        }
+        try {
+            val auth = FirebaseAuth.getInstance()
+            val authResult = auth.signInAnonymously().await()
+            val user = authResult.user
+            if (user != null) {
+                val accountInfo = FirebaseAccountInfo(
+                    uid = user.uid,
+                    email = "Invitado (${user.uid.take(6)})",
+                    displayName = "Usuario Invitado",
+                    photoUrl = null,
+                    isAnonymous = true
+                )
+                Result.success(accountInfo)
+            } else {
+                Result.failure(Exception("No se pudo crear la sesión de invitado."))
+            }
+        } catch (e: Exception) {
+            Log.e("GoogleAuthManager", "Error en signInAnonymously", e)
+            Result.failure(Exception(e.localizedMessage ?: "Error al conectar de forma anónima."))
+        }
+    }
+
+    /**
+     * Envía correo de recuperación de contraseña.
+     */
+    suspend fun sendPasswordResetEmail(email: String): Result<Unit> = withContext(Dispatchers.IO) {
+        if (!isFirebaseReady) {
+            return@withContext Result.failure(
+                IllegalStateException("Firebase no está disponible en este momento.")
+            )
+        }
+        val cleanEmail = email.trim()
+        if (cleanEmail.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Ingresa un correo electrónico válido."))
+        }
+        try {
+            FirebaseAuth.getInstance().sendPasswordResetEmail(cleanEmail).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(Exception(e.localizedMessage ?: "Error al enviar correo de recuperación."))
+        }
+    }
 
     /**
      * Inicia el flujo nativo de Google Sign-In mediante Credential Manager.

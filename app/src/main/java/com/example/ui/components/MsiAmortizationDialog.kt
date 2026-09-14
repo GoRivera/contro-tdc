@@ -104,11 +104,7 @@ fun MsiAmortizationDialog(
             val remaining = (totalPurchase - (msiSummary.monthlyPayment * instNum)).coerceAtLeast(0.0)
             val status = when {
                 instNum > currentInst -> InstallmentStatus.PENDING
-                instNum == currentInst -> InstallmentStatus.CURRENT
-                else -> {
-                    // El corte de esta cuota ya pasó (por eso avanzó "currentInst"), pero eso no
-                    // significa que el usuario ya haya liquidado ese estado de cuenta. Solo se marca
-                    // "Pagado" si los pagos registrados para ese corte cubren los cargos.
+                instNum == currentInst -> {
                     val settled = CreditCardCalculator.isStatementPeriodSettled(
                         cardId = exp.cardId,
                         year = rowCal.get(Calendar.YEAR),
@@ -116,7 +112,45 @@ fun MsiAmortizationDialog(
                         expenses = allExpenses,
                         payments = allPayments
                     )
-                    if (settled) InstallmentStatus.PAID else InstallmentStatus.OVERDUE
+                    if (settled) {
+                        InstallmentStatus.PAID
+                    } else {
+                        val card = msiSummary.card
+                        val isOverdue = if (card != null) {
+                            val dueDate = CreditCardCalculator.calculatePaymentDueDateForCutoff(
+                                card = card,
+                                cutoffYear = rowCal.get(Calendar.YEAR),
+                                cutoffMonth = rowCal.get(Calendar.MONTH)
+                            )
+                            Calendar.getInstance().time.after(dueDate)
+                        } else {
+                            false
+                        }
+                        if (isOverdue) InstallmentStatus.OVERDUE else InstallmentStatus.CURRENT
+                    }
+                }
+                else -> {
+                    // El corte de esta cuota ya pasó (por eso avanzó "currentInst"), pero eso no
+                    // significa que el usuario ya haya liquidado ese estado de cuenta. Solo se marca
+                    // "Pagado" si los pagos registrados para ese corte cubren los cargos.
+                    val hasChargesRecorded = allExpenses.any {
+                        it.cardId == exp.cardId &&
+                            CreditCardCalculator.extractYear(it.dateMillis, it.targetStatementMonth) == rowCal.get(Calendar.YEAR) &&
+                            CreditCardCalculator.normalizeMonth(it.targetStatementMonth) == monthLabel
+                    }
+                    if (hasChargesRecorded) {
+                        val settled = CreditCardCalculator.isStatementPeriodSettled(
+                            cardId = exp.cardId,
+                            year = rowCal.get(Calendar.YEAR),
+                            monthName = monthLabel,
+                            expenses = allExpenses,
+                            payments = allPayments
+                        )
+                        if (settled) InstallmentStatus.PAID else InstallmentStatus.OVERDUE
+                    } else {
+                        // Mensualidades anteriores a los registros del usuario en la app (histórico liquidado)
+                        InstallmentStatus.PAID
+                    }
                 }
             }
 

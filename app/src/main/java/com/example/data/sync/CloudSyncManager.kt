@@ -2,6 +2,7 @@ package com.example.data.sync
 
 import android.content.Context
 import android.util.Log
+import com.example.auth.FirebaseInitializer
 import com.example.data.model.CreditCard
 import com.example.data.model.Expense
 import com.example.data.model.FuelEntry
@@ -47,6 +48,9 @@ class CloudSyncManager(
 
     val isFirebaseInitialized: Boolean
         get() = try {
+            if (FirebaseApp.getApps(context).isEmpty()) {
+                FirebaseInitializer.ensureInitialized(context)
+            }
             FirebaseApp.getApps(context).isNotEmpty()
         } catch (e: Exception) {
             false

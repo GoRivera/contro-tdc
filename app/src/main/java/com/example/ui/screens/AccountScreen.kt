@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,8 +66,12 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import com.example.auth.FirebaseInitializer
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Refresh
@@ -582,17 +587,120 @@ fun AccountScreen(
 
                     // Acciones de autenticación y sincronización
                     if (firebaseUser == null) {
+                        var showConfigDetails by remember { mutableStateOf(false) }
+                        val clipboardManager = LocalClipboardManager.current
+                        var copyNotice by remember { mutableStateOf<String?>(null) }
+
                         Button(
                             onClick = onLaunchGoogleSignIn,
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("btn_connect_firebase")
+                        ) {
+                            Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Conectar con Firebase / Iniciar Sesión", fontWeight = FontWeight.Bold)
+                        }
+
+                        // Tarjeta informativa con datos del proyecto y SHA-1
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Iniciar Sesión con Google", fontWeight = FontWeight.Bold)
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { showConfigDetails = !showConfigDetails },
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Datos de Firebase (control-tdc)",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    Text(
+                                        text = if (showConfigDetails) "Ocultar" else "Ver SHA-1",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                if (showConfigDetails) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text("Proyecto: ${FirebaseInitializer.PROJECT_ID}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                                    Text("Paquete: ${FirebaseInitializer.PACKAGE_NAME}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                                    Text("SHA-1 Debug:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(FirebaseInitializer.DEBUG_SHA1, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    OutlinedButton(
+                                        onClick = {
+                                            clipboardManager.setText(AnnotatedString(FirebaseInitializer.DEBUG_SHA1))
+                                            copyNotice = "¡SHA-1 copiado al portapapeles!"
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Copiar SHA-1 para Firebase Console", fontSize = 11.sp)
+                                    }
+                                    copyNotice?.let { msg ->
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = msg,
+                                            fontSize = 11.sp,
+                                            color = if (isDark) Color(0xFF81C784) else Color(0xFF2E6C38),
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
                         }
                     } else {
+                        // Usuario conectado
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDone,
+                                    contentDescription = null,
+                                    tint = if (isDark) Color(0xFF81C784) else Color(0xFF2E6C38),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = if (firebaseUser.isAnonymous) "Sesión de Invitado" else (firebaseUser.displayName.ifBlank { firebaseUser.email }),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (firebaseUser.isAnonymous) "UID: ${firebaseUser.uid.take(10)}..." else firebaseUser.email,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)

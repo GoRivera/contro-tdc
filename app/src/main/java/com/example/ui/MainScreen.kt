@@ -13,6 +13,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,10 +37,17 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.Person
@@ -56,6 +64,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -64,11 +73,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.example.auth.FirebaseInitializer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -187,6 +203,7 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val isAppLocked by viewModel.isAppLocked.collectAsStateWithLifecycle()
     val isAppLockEnabled by viewModel.isAppLockEnabled.collectAsStateWithLifecycle()
+    val isDark = isSystemInDarkTheme()
     val haptic = LocalHapticFeedback.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     var showGoogleSignInDialog by remember { mutableStateOf(false) }
@@ -340,6 +357,41 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                             }
                         }
 
+                        // Botón de Estado / Acceso a Nube Firebase
+                        val currentFbUser = firebaseUser
+                        Surface(
+                            shape = CircleShape,
+                            color = if (currentFbUser != null) {
+                                if (isDark) androidx.compose.ui.graphics.Color(0xFF1E392A) else androidx.compose.ui.graphics.Color(0xFFE8F5E9)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            },
+                            border = if (currentFbUser != null) {
+                                androidx.compose.foundation.BorderStroke(1.dp, if (isDark) androidx.compose.ui.graphics.Color(0xFF81C784) else androidx.compose.ui.graphics.Color(0xFF2E6C38))
+                            } else null,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    AppHaptics.light(haptic, isHapticsEnabled)
+                                    selectedTab = 6
+                                }
+                                .testTag("btn_top_cloud_sync")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (currentFbUser != null) Icons.Default.CloudDone else Icons.Default.CloudSync,
+                                    contentDescription = if (currentFbUser != null) "Nube conectada: ${currentFbUser.email}" else "Conectar Firebase",
+                                    tint = if (currentFbUser != null) {
+                                        if (isDark) androidx.compose.ui.graphics.Color(0xFF81C784) else androidx.compose.ui.graphics.Color(0xFF2E6C38)
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
                         // User avatar / Cuenta
                         Surface(
                             shape = CircleShape,
@@ -421,15 +473,12 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                     // siempre visibles; con esto quedan 5, más cómodo en pantallas de celular).
                     // No cambia a qué pestaña navega cada una (siguen siendo selectedTab 2 y 3).
                     NavigationBarItem(
-                        selected = selectedTab == 2 || selectedTab == 3,
+                        selected = selectedTab in listOf(2, 3, 7, 8),
                         onClick = {
                             AppHaptics.light(haptic, isHapticsEnabled)
                             showMoreMenu = true
                         },
                         icon = {
-                            // El Box ancla el DropdownMenu al ícono; NavigationBarItem necesita
-                            // seguir siendo hijo directo de RowScope (lo que da NavigationBar), así
-                            // que el menú no puede envolver a todo el NavigationBarItem.
                             Box {
                                 Icon(Icons.Default.MoreHoriz, contentDescription = "Más")
                                 DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
@@ -451,6 +500,53 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                                         },
                                         modifier = Modifier.testTag("nav_fuel")
                                     )
+                                    DropdownMenuItem(
+                                        text = { Text("Servicios (Luz, Agua...)") },
+                                        leadingIcon = { Icon(Icons.Default.Bolt, contentDescription = null) },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            selectedTab = 7
+                                        },
+                                        modifier = Modifier.testTag("nav_services")
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Tendencias de Gasto") },
+                                        leadingIcon = { Icon(Icons.Default.TrendingUp, contentDescription = null) },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            selectedTab = 8
+                                        },
+                                        modifier = Modifier.testTag("nav_trends")
+                                    )
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(
+                                                    "Cuenta y Nube Firebase",
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                Text(
+                                                    if (firebaseUser != null) "Conectado (${firebaseUser?.email})" else "Sincronización multi-dispositivo",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = if (firebaseUser != null) Icons.Default.CloudDone else Icons.Default.CloudSync,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            selectedTab = 6
+                                        },
+                                        modifier = Modifier.testTag("nav_cloud_account")
+                                    )
                                 }
                             }
                         },
@@ -458,7 +554,7 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                             Text(
                                 "Más",
                                 fontSize = 9.sp,
-                                fontWeight = if (selectedTab == 2 || selectedTab == 3) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (selectedTab in listOf(2, 3, 7, 8)) FontWeight.Bold else FontWeight.Normal
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
@@ -611,6 +707,7 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
                     allPayments = allPayments,
                     onOpenAddExpense = { showAddExpenseSheet = true },
                     onAdvanceInstallment = { exp -> viewModel.advanceMsiInstallment(exp) },
+                    onUndoAdvanceInstallment = { exp -> viewModel.undoAdvanceMsiInstallment(exp) },
                     onUpdateMsiExpense = { exp, concept, totalAmount, monthlyPayment, cardId, category, beneficiary, msiTotalMonths, msiCurrentInstallment, notes ->
                         viewModel.updateMsiExpense(
                             expense = exp,
@@ -924,25 +1021,37 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
         )
     }
 
-    // Modal / Diálogo de inicio de sesión con Google & Firebase
+    // Modal / Diálogo integral de inicio de sesión con Firebase (Google, Correo y Acceso Rápido)
     if (showGoogleSignInDialog) {
+        var selectedAuthTab by remember { mutableIntStateOf(0) } // 0: Google, 1: Correo, 2: Rápido
         var clientIdInput by remember { mutableStateOf("") }
         var isSigningIn by remember { mutableStateOf(false) }
         var signInError by remember { mutableStateOf<String?>(null) }
+        var signInSuccessMessage by remember { mutableStateOf<String?>(null) }
+
+        // Campos de correo y contraseña
+        var isRegisterMode by remember { mutableStateOf(false) }
+        var emailInput by remember { mutableStateOf("") }
+        var passwordInput by remember { mutableStateOf("") }
+        var nameInput by remember { mutableStateOf("") }
+
+        // Mostrar datos técnicos
+        var showTechnicalDetails by remember { mutableStateOf(false) }
+        val clipboardManager = LocalClipboardManager.current
 
         AlertDialog(
             onDismissRequest = { if (!isSigningIn) showGoogleSignInDialog = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Login,
+                        imageVector = Icons.Default.CloudSync,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(26.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Iniciar Sesión con Google",
+                        text = "Conexión con Firebase",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
@@ -950,92 +1059,366 @@ fun MainScreen(viewModel: CreditCardViewModel, initialAction: String? = null) {
             },
             text = {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Conecta tu cuenta de Google para sincronizar tus tarjetas y finanzas entre todos tus dispositivos Android sin costo.",
-                        fontSize = 13.sp,
+                        text = "Conecta la aplicación a la nube de Firebase para respaldar y sincronizar tus tarjetas y finanzas.",
+                        fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    if (!viewModel.googleAuthManager.isFirebaseReady) {
+                    // Pestañas de método de acceso
+                    TabRow(
+                        selectedTabIndex = selectedAuthTab,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                    ) {
+                        Tab(
+                            selected = selectedAuthTab == 0,
+                            onClick = { selectedAuthTab = 0; signInError = null },
+                            text = { Text("Google", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                        )
+                        Tab(
+                            selected = selectedAuthTab == 1,
+                            onClick = { selectedAuthTab = 1; signInError = null },
+                            text = { Text("Correo", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                        )
+                        Tab(
+                            selected = selectedAuthTab == 2,
+                            onClick = { selectedAuthTab = 2; signInError = null },
+                            text = { Text("Invitado", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                        )
+                    }
+
+                    when (selectedAuthTab) {
+                        // --- Pestaña 0: Google Sign-In ---
+                        0 -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = "Inicia sesión con tu cuenta de Google mediante el gestor de credenciales de Android.",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                OutlinedTextField(
+                                    value = clientIdInput,
+                                    onValueChange = { clientIdInput = it; signInError = null },
+                                    label = { Text("Web Client ID (Opcional)") },
+                                    placeholder = { Text("Usa el configurado por defecto") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Button(
+                                    onClick = {
+                                        isSigningIn = true
+                                        signInError = null
+                                        signInSuccessMessage = null
+                                        coroutineScope.launch {
+                                            val res = viewModel.googleAuthManager.signInWithGoogle(clientIdInput)
+                                            isSigningIn = false
+                                            res.fold(
+                                                onSuccess = { user ->
+                                                    viewModel.onFirebaseUserAuthenticated(user)
+                                                    showGoogleSignInDialog = false
+                                                },
+                                                onFailure = { ex ->
+                                                    signInError = ex.localizedMessage ?: "Error al iniciar sesión con Google."
+                                                }
+                                            )
+                                        }
+                                    },
+                                    enabled = !isSigningIn,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    if (isSigningIn) {
+                                        androidx.compose.material3.CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    } else {
+                                        Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text("Continuar con Google", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        // --- Pestaña 1: Correo y Contraseña ---
+                        1 -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (isRegisterMode) "Crear nueva cuenta" else "Iniciar sesión con correo",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    TextButton(
+                                        onClick = { isRegisterMode = !isRegisterMode; signInError = null },
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isRegisterMode) "¿Ya tienes cuenta? Entrar" else "¿Nuevo? Regístrate",
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+
+                                if (isRegisterMode) {
+                                    OutlinedTextField(
+                                        value = nameInput,
+                                        onValueChange = { nameInput = it; signInError = null },
+                                        label = { Text("Nombre o Apodo") },
+                                        singleLine = true,
+                                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+
+                                OutlinedTextField(
+                                    value = emailInput,
+                                    onValueChange = { emailInput = it; signInError = null },
+                                    label = { Text("Correo Electrónico") },
+                                    singleLine = true,
+                                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                OutlinedTextField(
+                                    value = passwordInput,
+                                    onValueChange = { passwordInput = it; signInError = null },
+                                    label = { Text("Contraseña (mín. 6 letras)") },
+                                    singleLine = true,
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Button(
+                                    onClick = {
+                                        isSigningIn = true
+                                        signInError = null
+                                        signInSuccessMessage = null
+                                        coroutineScope.launch {
+                                            val res = if (isRegisterMode) {
+                                                viewModel.googleAuthManager.signUpWithEmailAndPassword(
+                                                    email = emailInput,
+                                                    password = passwordInput,
+                                                    displayName = nameInput
+                                                )
+                                            } else {
+                                                viewModel.googleAuthManager.signInWithEmailAndPassword(
+                                                    email = emailInput,
+                                                    password = passwordInput
+                                                )
+                                            }
+                                            isSigningIn = false
+                                            res.fold(
+                                                onSuccess = { user ->
+                                                    viewModel.onFirebaseUserAuthenticated(user)
+                                                    showGoogleSignInDialog = false
+                                                },
+                                                onFailure = { ex ->
+                                                    signInError = ex.localizedMessage ?: "Error al autenticar con Firebase."
+                                                }
+                                            )
+                                        }
+                                    },
+                                    enabled = !isSigningIn,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    if (isSigningIn) {
+                                        androidx.compose.material3.CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text(
+                                        text = if (isRegisterMode) "Registrar Cuenta" else "Iniciar Sesión",
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                if (!isRegisterMode) {
+                                    TextButton(
+                                        onClick = {
+                                            if (emailInput.isBlank()) {
+                                                signInError = "Ingresa tu correo en el campo de arriba para enviarte el enlace."
+                                                return@TextButton
+                                            }
+                                            coroutineScope.launch {
+                                                val res = viewModel.googleAuthManager.sendPasswordResetEmail(emailInput)
+                                                res.fold(
+                                                    onSuccess = {
+                                                        signInSuccessMessage = "Correo de recuperación enviado a $emailInput."
+                                                        signInError = null
+                                                    },
+                                                    onFailure = { ex ->
+                                                        signInError = ex.localizedMessage ?: "Error al enviar recuperación."
+                                                    }
+                                                )
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("¿Olvidaste tu contraseña? Restablecer", fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        }
+
+                        // --- Pestaña 2: Acceso Rápido / Invitado ---
+                        2 -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = "Conéctate de forma instantánea sin correos ni contraseñas. Ideal para probar la sincronización en la nube con Firestore de inmediato.",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                Button(
+                                    onClick = {
+                                        isSigningIn = true
+                                        signInError = null
+                                        signInSuccessMessage = null
+                                        coroutineScope.launch {
+                                            val res = viewModel.googleAuthManager.signInAnonymously()
+                                            isSigningIn = false
+                                            res.fold(
+                                                onSuccess = { user ->
+                                                    viewModel.onFirebaseUserAuthenticated(user)
+                                                    showGoogleSignInDialog = false
+                                                },
+                                                onFailure = { ex ->
+                                                    signInError = ex.localizedMessage ?: "Error al conectar como invitado."
+                                                }
+                                            )
+                                        }
+                                    },
+                                    enabled = !isSigningIn,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    if (isSigningIn) {
+                                        androidx.compose.material3.CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    } else {
+                                        Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text("Entrar de Inmediato (Modo Invitado)", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    // Mensajes de error o éxito
+                    signInError?.let { err ->
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)),
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = err,
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+
+                    signInSuccessMessage?.let { msg ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = androidx.compose.ui.graphics.Color(0xFF2E6C38).copy(alpha = 0.12f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = msg,
+                                color = androidx.compose.ui.graphics.Color(0xFF2E6C38),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+
+                    // Accordeón / Información de configuración de Firebase
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showTechnicalDetails = !showTechnicalDetails },
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Datos de Firebase (control-tdc)",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                                 Text(
-                                    text = "Paso previo requerido:",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.tertiary
-                                )
-                                Text(
-                                    text = "Coloca tu archivo 'google-services.json' en la raíz del módulo 'app/'. Revisa la guía en el chat para el paso a paso.",
+                                    text = if (showTechnicalDetails) "Ocultar" else "Ver SHA-1",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                        }
-                    } else {
-                        OutlinedTextField(
-                            value = clientIdInput,
-                            onValueChange = { clientIdInput = it; signInError = null },
-                            label = { Text("Web Client ID de Firebase (Opcional)") },
-                            placeholder = { Text("xxxxxx.apps.googleusercontent.com") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
 
-                    signInError?.let { err ->
-                        Text(
-                            text = err,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (!viewModel.googleAuthManager.isFirebaseReady) {
-                            signInError = "Aún falta agregar el archivo google-services.json al proyecto."
-                            return@Button
-                        }
-                        isSigningIn = true
-                        signInError = null
-                        coroutineScope.launch {
-                            val res = viewModel.googleAuthManager.signInWithGoogle(clientIdInput)
-                            isSigningIn = false
-                            res.fold(
-                                onSuccess = { user ->
-                                    viewModel.onFirebaseUserAuthenticated(user)
-                                    showGoogleSignInDialog = false
-                                },
-                                onFailure = { ex ->
-                                    signInError = ex.localizedMessage ?: "Error al iniciar sesión con Google."
+                            if (showTechnicalDetails) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text("Proyecto: ${FirebaseInitializer.PROJECT_ID}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
+                                Text("Paquete: ${FirebaseInitializer.PACKAGE_NAME}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
+                                Text("SHA-1 Debug:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text(FirebaseInitializer.DEBUG_SHA1, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        clipboardManager.setText(AnnotatedString(FirebaseInitializer.DEBUG_SHA1))
+                                        signInSuccessMessage = "¡SHA-1 copiado al portapapeles!"
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Copiar SHA-1 para Firebase Console", fontSize = 10.sp)
                                 }
-                            )
+                            }
                         }
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    if (isSigningIn) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
                     }
-                    Text("Continuar con Google", fontWeight = FontWeight.Bold)
                 }
             },
+            confirmButton = {},
             dismissButton = {
                 TextButton(
                     onClick = { showGoogleSignInDialog = false }

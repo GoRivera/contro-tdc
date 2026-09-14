@@ -34,16 +34,21 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.HourglassBottom
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.Undo
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -51,6 +56,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -63,7 +72,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -93,6 +104,7 @@ fun MsiTrackerScreen(
     allExpenses: List<Expense> = emptyList(),
     allPayments: List<Payment> = emptyList(),
     onAdvanceInstallment: ((Expense) -> Unit)? = null,
+    onUndoAdvanceInstallment: ((Expense) -> Unit)? = null,
     onOpenAddExpense: () -> Unit = {},
     onUpdateMsiExpense: (
         expense: Expense,
@@ -120,9 +132,13 @@ fun MsiTrackerScreen(
     // Requisito 1: Diálogo de tabla de amortización al tocar un plan de MSI
     var selectedMsiForAmortization by remember { mutableStateOf<MsiSummary?>(null) }
 
-    // Edición de MSI
+    // Edición y confirmaciones de MSI
     var msiToEdit by remember { mutableStateOf<Expense?>(null) }
     var msiToDelete by remember { mutableStateOf<Expense?>(null) }
+    var msiToAdvance by remember { mutableStateOf<Expense?>(null) }
+    var msiToUndoAdvance by remember { mutableStateOf<Expense?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     // Clasificación de MSI activos vs finalizados
     val activeMsiList = remember(msiList) {
@@ -152,12 +168,13 @@ fun MsiTrackerScreen(
         selectedCardFilterId == null || item.expense.cardId == selectedCardFilterId
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         item {
             Spacer(modifier = Modifier.height(6.dp))
 
@@ -561,7 +578,7 @@ fun MsiTrackerScreen(
                             }
                         }
 
-                        // Beneficiario del gasto y botón editar / avanzar
+                        // Beneficiario del gasto y opciones
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "Para: ${exp.beneficiary}",
@@ -569,26 +586,11 @@ fun MsiTrackerScreen(
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            if (!isCompleted && onAdvanceInstallment != null) {
-                                Spacer(modifier = Modifier.width(2.dp))
-                                IconButton(
-                                    onClick = { onAdvanceInstallment(exp) },
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .testTag("btn_advance_msi_${exp.id}")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                        contentDescription = "Avanzar una mensualidad",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
+                            Spacer(modifier = Modifier.width(2.dp))
                             IconButton(
                                 onClick = { msiToEdit = exp },
                                 modifier = Modifier
-                                    .size(48.dp)
+                                    .size(40.dp)
                                     .testTag("btn_edit_msi_${exp.id}")
                             ) {
                                 Icon(
@@ -597,6 +599,80 @@ fun MsiTrackerScreen(
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp)
                                 )
+                            }
+
+                            // Menú de opciones adicionales (oculta el botón de avance para evitar toques accidentales)
+                            var showOptionsMenu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(
+                                    onClick = { showOptionsMenu = true },
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .testTag("btn_menu_msi_${exp.id}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "Más opciones",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showOptionsMenu,
+                                    onDismissRequest = { showOptionsMenu = false }
+                                ) {
+                                    if (!isCompleted && onAdvanceInstallment != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Adelantar mensualidad...") },
+                                            onClick = {
+                                                showOptionsMenu = false
+                                                msiToAdvance = exp
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        )
+                                    }
+                                    if (exp.msiCurrentInstallment > 1 && onUndoAdvanceInstallment != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Deshacer adelanto (retroceder)") },
+                                            onClick = {
+                                                showOptionsMenu = false
+                                                msiToUndoAdvance = exp
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.Undo,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.secondary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        )
+                                    }
+                                    if (onDeleteMsiExpense != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Eliminar plan", color = MaterialTheme.colorScheme.error) },
+                                            onClick = {
+                                                showOptionsMenu = false
+                                                msiToDelete = exp
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -788,6 +864,14 @@ fun MsiTrackerScreen(
         }
     }
 
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = 16.dp)
+    )
+}
+
     // Requisito 1: Diálogo con la tabla de amortización e indicación visual de la posición actual
     selectedMsiForAmortization?.let { msiSummary ->
         MsiAmortizationDialog(
@@ -857,6 +941,124 @@ fun MsiTrackerScreen(
             },
             dismissButton = {
                 TextButton(onClick = { msiToDelete = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // Diálogo de Advertencia y Confirmación para Adelantar Mensualidad Manualmente
+    msiToAdvance?.let { exp ->
+        val nextInst = exp.msiCurrentInstallment + 1
+        AlertDialog(
+            onDismissRequest = { msiToAdvance = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "¿Adelantar mensualidad manualmente?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Estás a punto de avanzar el plan \"${exp.concept}\" de la cuota ${exp.msiCurrentInstallment} a la cuota $nextInst de ${exp.msiTotalMonths}.",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Esta acción actualizará el mes de corte al siguiente periodo en tus cuentas asociadas. Recuerda que siempre podrás deshacer esta acción si lo requieres.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val currentExp = exp
+                        msiToAdvance = null
+                        onAdvanceInstallment?.invoke(currentExp)
+                        coroutineScope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Se adelantó a la cuota $nextInst de ${currentExp.concept}",
+                                actionLabel = "Deshacer",
+                                duration = SnackbarDuration.Short
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                onUndoAdvanceInstallment?.invoke(currentExp.copy(msiCurrentInstallment = nextInst))
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Adelantar Cuota", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { msiToAdvance = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // Diálogo de Confirmación para Deshacer Adelanto (Retroceder Mensualidad)
+    msiToUndoAdvance?.let { exp ->
+        val prevInst = exp.msiCurrentInstallment - 1
+        AlertDialog(
+            onDismissRequest = { msiToUndoAdvance = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Undo,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "¿Deshacer adelanto de mensualidad?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Se retrocederá el plan \"${exp.concept}\" de la cuota ${exp.msiCurrentInstallment} a la cuota $prevInst de ${exp.msiTotalMonths}.",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "El mes de corte regresará al periodo anterior correspondiente en tus cuentas asociadas.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val currentExp = exp
+                        msiToUndoAdvance = null
+                        onUndoAdvanceInstallment?.invoke(currentExp)
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Deshacer Adelanto", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { msiToUndoAdvance = null }) {
                     Text("Cancelar")
                 }
             }

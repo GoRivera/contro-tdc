@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.auth.FirebaseInitializer
 import com.example.notifications.NotificationHelper
 import com.example.notifications.PaymentReminderWorker
 import com.example.ui.MainScreen
@@ -30,6 +31,9 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Asegurar inicialización de Firebase para sincronización en la nube y autenticación
+        FirebaseInitializer.ensureInitialized(this)
 
         // Recordatorios de fecha límite de pago (item 14): se agenda una revisión diaria en
         // segundo plano y se pide el permiso de notificaciones (requerido desde Android 13).

@@ -608,6 +608,29 @@ class CreditCardViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun undoAdvanceMsiInstallment(expense: Expense) {
+        viewModelScope.launch {
+            if (expense.isMsi && expense.msiCurrentInstallment > 1) {
+                val prevInstallment = expense.msiCurrentInstallment - 1
+                val card = allCards.value.firstOrNull { it.id == expense.cardId }
+                val newTargetStatementMonth = if (card != null) {
+                    CreditCardCalculator.calculateStatementMonthForInstallment(
+                        purchaseDateMillis = expense.dateMillis,
+                        cardCutoffDay = card.cutoffDay,
+                        installmentNumber = prevInstallment
+                    )
+                } else {
+                    expense.targetStatementMonth
+                }
+                val updated = expense.copy(
+                    msiCurrentInstallment = prevInstallment,
+                    targetStatementMonth = newTargetStatementMonth
+                )
+                repository.updateExpense(updated)
+            }
+        }
+    }
+
     // Payment actions
     fun addPayment(
         cardId: Long,

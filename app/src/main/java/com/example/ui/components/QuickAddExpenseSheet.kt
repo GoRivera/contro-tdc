@@ -239,13 +239,13 @@ fun QuickAddExpenseSheet(
     }
 
     // Cálculo automático de la línea de tiempo de MSI conforme a fecha de compra, corte de tarjeta y mes activo
-    val autoMsiTimeline = remember(expenseDateMillis, selectedCard, msiTotalMonths, activePaymentMonth, isMsi) {
+    val autoMsiTimeline = remember(expenseDateMillis, selectedCard, msiTotalMonths, userOverriddenMonth, isMsi) {
         if (selectedCard != null && isMsi) {
             CreditCardCalculator.calculateMsiAutoTimeline(
                 purchaseDateMillis = expenseDateMillis,
                 cardCutoffDay = selectedCard.cutoffDay,
                 totalMonths = msiTotalMonths,
-                targetStatementMonthName = activePaymentMonth
+                targetStatementMonthName = userOverriddenMonth
             )
         } else null
     }
@@ -1713,6 +1713,16 @@ fun QuickAddExpenseSheet(
                                 expenseDateMillis
                             }
 
+                            val effectiveStatementMonth = if (isMsi && selectedCard != null && userOverriddenMonth == null) {
+                                CreditCardCalculator.calculateStatementMonthForInstallment(
+                                    purchaseDateMillis = effectiveExpenseDateMillis,
+                                    cardCutoffDay = selectedCard.cutoffDay,
+                                    installmentNumber = effectiveCurrentInstallment
+                                )
+                            } else {
+                                activePaymentMonth
+                            }
+
                             if (isSplitExpense) {
                                 // Guardar registro individual para cada persona que participó en la división
                                 participantShares.forEach { (person, shareTotal) ->
@@ -1727,7 +1737,7 @@ fun QuickAddExpenseSheet(
                                         isMsi,
                                         msiTotalMonths,
                                         effectiveCurrentInstallment,
-                                        activePaymentMonth,
+                                        effectiveStatementMonth,
                                         shareTotal
                                     )
                                 }
@@ -1745,7 +1755,7 @@ fun QuickAddExpenseSheet(
                                     isMsi,
                                     msiTotalMonths,
                                     effectiveCurrentInstallment,
-                                    activePaymentMonth,
+                                    effectiveStatementMonth,
                                     capturedTotalAmount
                                 )
                             }

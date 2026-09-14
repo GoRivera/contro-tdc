@@ -405,9 +405,12 @@ object CreditCardCalculator {
         } else {
             val todayDay = refCal.get(Calendar.DAY_OF_MONTH)
             refCal.set(Calendar.DAY_OF_MONTH, 1)
-            if (todayDay > cardCutoffDay) {
-                refCal.add(Calendar.MONTH, 1)
+            if (todayDay < cardCutoffDay) {
+                // El corte del mes en curso aún no sucede; el corte activo más reciente fue el del mes anterior
+                refCal.add(Calendar.MONTH, -1)
             }
+            // Si todayDay >= cardCutoffDay, el corte de este mes ya se llevó a cabo.
+            // La mensualidad correspondiente a este corte ya está activa y entra en el estado de cuenta actual.
         }
 
         val monthsDiff = (refCal.get(Calendar.YEAR) - firstChargeCal.get(Calendar.YEAR)) * 12 +
@@ -658,12 +661,7 @@ object CreditCardCalculator {
         // Extract year from targetStatementMonth if present (e.g. "Septiembre 2026" or "2026-09")
         val yearRegex = "\\b(20\\d\\d)\\b".toRegex()
         val yearMatch = yearRegex.find(raw)
-        val extractedYear = yearMatch?.value?.toIntOrNull() ?: if (expense.dateMillis > 0) {
-            val dateCal = Calendar.getInstance().apply { timeInMillis = expense.dateMillis }
-            dateCal.get(Calendar.YEAR)
-        } else {
-            2026
-        }
+        val extractedYear = yearMatch?.value?.toIntOrNull() ?: resolveNearestYearForMonth(raw)
 
         if (raw.contains("-")) {
             val parts = raw.split("-")
@@ -879,7 +877,40 @@ object CreditCardCalculator {
                     normalizeMonth(it.targetStatementMonth) == normMonth
             }
             .sumOf { it.amount }
+        if (totalCharges <= 0.0 && totalPayments <= 0.0) {
+            return false
+        }
         return (totalCharges - totalPayments) <= 0.01
+    }
+
+    /**
+     * Calcula la fecha límite de pago efectiva para un periodo de corte dado (año y mes del corte),
+     * considerando días inhábiles bancarios de México.
+     */
+    fun calculatePaymentDueDateForCutoff(card: CreditCard, cutoffYear: Int, cutoffMonth: Int): Date {
+        val paymentCal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, cutoffYear)
+            set(Calendar.MONTH, cutoffMonth)
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 23)
+            set(Calendar.MINUTE, 59)
+            set(Calendar.SECOND, 59)
+            set(Calendar.MILLISECOND, 999)
+        }
+        if (card.paymentDueDay > card.cutoffDay) {
+            // La fecha límite de pago cae en el mismo mes calendario del corte
+            val maxDay = paymentCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            val actualDueDay = card.paymentDueDay.coerceAtMost(maxDay)
+            paymentCal.set(Calendar.DAY_OF_MONTH, actualDueDay)
+        } else {
+            // La fecha límite de pago cae en el mes siguiente al corte
+            paymentCal.add(Calendar.MONTH, 1)
+            val maxDay = paymentCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            val actualDueDay = card.paymentDueDay.coerceAtMost(maxDay)
+            paymentCal.set(Calendar.DAY_OF_MONTH, actualDueDay)
+        }
+        val (effectiveDueDate, _) = MexicanBankingCalendar.getEffectivePaymentDueDate(paymentCal.time)
+        return effectiveDueDate
     }
 
     fun formatDate(millis: Long): String {

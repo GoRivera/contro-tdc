@@ -227,6 +227,62 @@ class CreditCardCalculatorTest {
         assertTrue(CreditCardCalculator.isStatementPeriodSettled(1L, 2026, "Septiembre 2026", expenses, paymentsFull))
         assertFalse(CreditCardCalculator.isStatementPeriodSettled(1L, 2026, "Septiembre 2026", expenses, paymentsPartial))
         assertFalse(CreditCardCalculator.isStatementPeriodSettled(1L, 2026, "Septiembre 2026", expenses, emptyList()))
+        // Periodo sin movimientos no debe considerarse liquidado prematuramente
+        assertFalse(CreditCardCalculator.isStatementPeriodSettled(1L, 2026, "Septiembre 2026", emptyList(), emptyList()))
+    }
+
+    @Test
+    fun testUserScenarioPurchaseSept13Cutoff5PaymentDue25() {
+        val cardWithCutoff5 = CreditCard(
+            id = 5L,
+            name = "Tarjeta Corte 5",
+            bank = "Banco",
+            cutoffDay = 5,
+            paymentDueDay = 25,
+            creditLimit = 50000.0,
+            primaryColorHex = 0xFF123456,
+            secondaryColorHex = 0xFF654321
+        )
+
+        // Compra el 13 de septiembre de 2025
+        val purchaseCal = Calendar.getInstance().apply {
+            set(2025, Calendar.SEPTEMBER, 13, 12, 0, 0)
+        }
+        val purchaseMillis = purchaseCal.timeInMillis
+
+        // Como el corte es el 5 y la compra fue el 13 de septiembre, el primer corte donde entra es el 5 de Octubre de 2025.
+        // Cuota 1: Octubre 2025 (corte 5 oct 2025, pago 25 oct 2025)
+        // Cuota 12: Septiembre 2026 (corte 5 sep 2026, pago 25 sep 2026)
+        val monthInst12 = CreditCardCalculator.calculateStatementMonthForInstallment(purchaseMillis, cardWithCutoff5.cutoffDay, 12)
+        assertEquals("Septiembre 2026", monthInst12)
+
+        // Fecha de corte de la cuota 12: Septiembre 2026
+        val dueDateInst12 = CreditCardCalculator.calculatePaymentDueDateForCutoff(
+            card = cardWithCutoff5,
+            cutoffYear = 2026,
+            cutoffMonth = Calendar.SEPTEMBER
+        )
+        val dueCal = Calendar.getInstance().apply { time = dueDateInst12 }
+        assertEquals(2026, dueCal.get(Calendar.YEAR))
+        assertEquals(Calendar.SEPTEMBER, dueCal.get(Calendar.MONTH))
+        assertEquals(25, dueCal.get(Calendar.DAY_OF_MONTH))
+
+        // Al 13 de septiembre de 2026, aún no pasa la fecha límite de pago (25 de septiembre)
+        val todayCal = Calendar.getInstance().apply {
+            set(2026, Calendar.SEPTEMBER, 13, 12, 0, 0)
+        }
+        assertFalse("El 13 de septiembre no ha vencido el pago del 25 de septiembre", todayCal.time.after(dueDateInst12))
+
+        // Y sin pagos registrados para ese mes, no debe estar liquidado
+        val exp = Expense(
+            id = 50L,
+            cardId = cardWithCutoff5.id,
+            concept = "Compra 12 MSI",
+            amount = 1000.0,
+            dateMillis = purchaseMillis,
+            targetStatementMonth = "Septiembre 2026"
+        )
+        assertFalse(CreditCardCalculator.isStatementPeriodSettled(cardWithCutoff5.id, 2026, "Septiembre 2026", listOf(exp), emptyList()))
     }
 
     @Test
