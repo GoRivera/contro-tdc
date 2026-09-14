@@ -1,6 +1,6 @@
 {
   "name": "Control TDC",
-  "description": "Gestor inteligente de tarjetas de crédito, meses sin intereses (MSI), estados de cuenta y recomendación de compras para maximizar financiamiento.",
+  "description": "Gestión inteligente y control financiero de tarjetas de crédito",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
