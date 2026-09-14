@@ -8,7 +8,7 @@ android {
     namespace = "com.example.controltdc"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.example.controltdc"
+        applicationId = "com.aistudio.creditcards.qwvpkz"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

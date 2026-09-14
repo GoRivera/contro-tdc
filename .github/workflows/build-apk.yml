@@ -1,7 +1,7 @@
 name: Build Debug APK
 
-# Este flujo compila el proyecto y publica el APK de depuración como artefacto descargable.
-# Se ejecuta automáticamente al hacer push a main/master o manualmente desde la pestaña Actions en GitHub.
+# Compilación automatizada de APK de depuración en GitHub Actions.
+# Se ejecuta en push a las ramas main/master o mediante ejecución manual (workflow_dispatch).
 
 on:
   workflow_dispatch:
@@ -22,11 +22,17 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Dar permisos de ejecución al Gradle Wrapper
-        run: chmod +x gradlew
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v4
 
-      - name: Configurar variables de entorno
+      - name: Aceptar licencias del Android SDK e instalar dependencias de compilación
         run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" || true
+
+      - name: Configurar local.properties y variables de entorno
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
           if [ ! -f .env ]; then
             if [ -f .env.example ]; then
               cp .env.example .env
@@ -35,75 +41,11 @@ jobs:
             fi
           fi
 
-      - name: Configurar Android SDK y Aceptar Licencias
-        run: |
-          set +o pipefail
-          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          export ANDROID_SDK_ROOT="$ANDROID_HOME"
-          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
-
-          # 1. Asegurar propiedad del usuario sobre el SDK para auto-descargas
-          sudo chown -R "$(id -u):$(id -g)" "$ANDROID_HOME" 2>/dev/null || true
-          mkdir -p "$ANDROID_HOME/licenses" "$HOME/.android/licenses"
-
-          # 2. Registrar todos los hashes oficiales de licencias (antiguos y modernos 2024-2026)
-          for lic_dir in "$ANDROID_HOME/licenses" "$HOME/.android/licenses"; do
-            cat << 'EOF' > "$lic_dir/android-sdk-license"
-24333f8a63b1d7f2e51f81648a3eb180e1a021ee
-d56f5187479451eabf01fb78af6dfcb131a6481e
-84831b9409646a918e30573bab4c9c91346d8abd
-24333f8a63b6825ea9c5514f83c2829b004d1fee
-EOF
-
-            cat << 'EOF' > "$lic_dir/android-sdk-preview-license"
-84831b9409646a918e30573bab4c9c91346d8abd
-5046274c46de7009618bc4b9f7dd729f60073a35
-EOF
-
-            cat << 'EOF' > "$lic_dir/android-googletv-license"
-601085b94cd77f0b54ff864069570991500085d7
-601085b94cd77f0b54ff86406957099ebe79c4d6
-EOF
-
-            cat << 'EOF' > "$lic_dir/google-gdk-license"
-33b6a2b64f07f11b78313276e6b69f6266d7d473
-33b6a2b64607f11b759f320ef9dff4ae5c47d97a
-EOF
-
-            cat << 'EOF' > "$lic_dir/mips-android-sysimage-license"
-e9acab5b5fbb560a72cfa4e23c30ceab4dd4965e
-e9acab5b5fbb560a72cfaecce8946896ff6aab9d
-EOF
-
-            cat << 'EOF' > "$lic_dir/android-googlexr-license"
-ceff83576aac4f7f37cb98fe189e9fb3c49d3b81
-EOF
-
-            cat << 'EOF' > "$lic_dir/android-sdk-arm-dbt-license"
-859f317696f67ef3d7f30a50a5560e7834b43903
-EOF
-          done
-
-          # 3. Invocar sdkmanager directamente sin pipes que causen SIGPIPE 141
-          if [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" || true
-          fi
-
-      - name: Asegurar Keystore persistente
-        run: |
-          if [ ! -f debug.keystore ] && [ -f debug.keystore.base64 ]; then
-            base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || base64 -di debug.keystore.base64 > debug.keystore
-          fi
+      - name: Dar permisos de ejecución al Gradle Wrapper
+        run: chmod +x gradlew
 
       - name: Compilar APK de depuración
-        run: |
-          ./gradlew assembleDebug \
-            --no-daemon \
-            --stacktrace \
-            --no-configuration-cache \
-            -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
-            -PappVersionCode=${{ github.run_number }}
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Subir APK como artefacto descargable
         uses: actions/upload-artifact@v4
